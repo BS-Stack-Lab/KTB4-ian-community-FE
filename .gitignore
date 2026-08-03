@@ -19,3 +19,4 @@ backup/
 *.sql.gz
 *.dump
 *.tar.gz
+artifacts/
