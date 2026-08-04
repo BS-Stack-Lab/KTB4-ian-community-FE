@@ -118,6 +118,63 @@ test("Feed 오류는 Retry 후 Content로 회복한다", async ({ page }) => {
   expect(requestCount).toBe(2);
 });
 
+test("빈 Feed와 Bookmark의 Stroke는 Viewport 하단까지 유지된다", async ({
+  page,
+}) => {
+  await seedSession(page);
+  await routeUser(page);
+  await page.route("http://127.0.0.1:8080/api/posts?*", (route) =>
+    route.fulfill({ json: { data: { content: [] } }, headers: cors }),
+  );
+  await page.route("http://127.0.0.1:8080/api/posts/bookmarks?*", (route) =>
+    route.fulfill({ json: { data: { content: [] } }, headers: cors }),
+  );
+
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+
+    for (const target of [
+      {
+        path: "/feed",
+        selector: ".feed-page",
+        emptyText: "아직 생성된 피드가 없어요.",
+        topOffset: 40,
+      },
+      {
+        path: "/bookmarks",
+        selector: ".bookmarks-page",
+        emptyText: "저장한 북마크가 없어요.",
+        topOffset: 40,
+      },
+    ]) {
+      await page.goto(target.path);
+      await expect(page.getByText(target.emptyText)).toBeVisible();
+
+      const metrics = await page
+        .locator(target.selector)
+        .evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          const stroke = getComputedStyle(element, "::after");
+          return {
+            height: rect.height,
+            stroke: stroke.borderLeft,
+            scrollWidth: document.documentElement.scrollWidth,
+          };
+        });
+
+      expect(metrics.height).toBeGreaterThanOrEqual(
+        viewport.height - target.topOffset,
+      );
+      expect(metrics.stroke).toBe("1px solid rgb(229, 229, 229)");
+      expect(metrics.scrollWidth).toBe(viewport.width);
+    }
+  }
+});
+
 test("Post Detail 오류는 Header를 유지하고 Retry 후 본문을 표시한다", async ({
   page,
 }) => {

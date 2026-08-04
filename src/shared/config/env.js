@@ -1,15 +1,18 @@
-export function defaultApiBaseUrl(hostname) {
-  const normalizedHostname = hostname || "localhost";
-  if (normalizedHostname === "localhost" || normalizedHostname === "127.0.0.1")
-    return `http://${normalizedHostname}:8080`;
+export function defaultApiBaseUrl(location = globalThis.location) {
+  const resolvedLocation =
+    typeof location === "string" ? { hostname: location } : location;
+  const hostname = resolvedLocation?.hostname || "localhost";
+  const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
+
+  if (isLocal) return `http://${hostname}:8080`;
+  if (resolvedLocation?.origin && resolvedLocation.origin !== "null")
+    return resolvedLocation.origin;
+
   return "";
 }
 
 export function apiBaseUrl() {
-  return (
-    globalThis.__API_BASE_URL__ ??
-    defaultApiBaseUrl(globalThis.location?.hostname)
-  );
+  return globalThis.__API_BASE_URL__ ?? defaultApiBaseUrl();
 }
 
 export const DEFAULT_PROFILE_PATH = "/images/profile-default.svg";

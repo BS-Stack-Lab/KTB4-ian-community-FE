@@ -134,7 +134,7 @@ test("Post Detail Header와 본문은 Figma 위치·크기를 사용한다", asy
     };
     const title = document.querySelector(".page-header h1");
     const pageElement = document.querySelector(".post-detail-page");
-    const stroke = getComputedStyle(pageElement, "::after");
+    const pageStroke = getComputedStyle(pageElement, "::after");
     return {
       page: measure(".post-detail-page"),
       header: measure(".page-header"),
@@ -161,14 +161,17 @@ test("Post Detail Header와 본문은 Figma 위치·크기를 사용한다", asy
       commentSubmitBackground: getComputedStyle(
         document.querySelector(".comment-form .submit-icon"),
       ).backgroundColor,
-      stroke: {
-        borderLeft: stroke.borderLeft,
-        pointerEvents: stroke.pointerEvents,
-        position: stroke.position,
-        zIndex: stroke.zIndex,
+      pageRadius: getComputedStyle(pageElement).borderRadius,
+      pageStroke: {
+        borderLeft: pageStroke.borderLeft,
+        width: pageStroke.borderLeftWidth,
+        style: pageStroke.borderLeftStyle,
+        color: pageStroke.borderLeftColor,
+        radius: pageStroke.borderRadius,
+        pointerEvents: pageStroke.pointerEvents,
+        position: pageStroke.position,
+        zIndex: pageStroke.zIndex,
       },
-      pageRadius: getComputedStyle(document.querySelector(".post-detail-page"))
-        .borderRadius,
       titleTypography: {
         fontSize: getComputedStyle(title).fontSize,
         fontWeight: getComputedStyle(title).fontWeight,
@@ -195,13 +198,18 @@ test("Post Detail Header와 본문은 Figma 위치·크기를 사용한다", asy
   });
   expect(metrics.commentPlaceholder).toBe("rgb(115, 115, 115)");
   expect(metrics.commentSubmitBackground).toBe("rgb(161, 161, 161)");
-  expect(metrics.stroke).toEqual({
+  expect(metrics.pageStroke).toEqual({
     borderLeft: "1px solid rgb(229, 229, 229)",
+    width: "1px",
+    style: "solid",
+    color: "rgb(229, 229, 229)",
+    radius: "30px",
     pointerEvents: "none",
     position: "absolute",
     zIndex: "30",
   });
-  expect(metrics.pageRadius).toBe("30px 30px 0px 0px");
+  expect(metrics.pageRadius).toBe("30px");
+  expect(metrics.page.height).toBeGreaterThanOrEqual(1043);
   expect(metrics.titleTypography).toEqual({
     fontSize: "20px",
     fontWeight: "700",
@@ -213,6 +221,40 @@ test("Post Detail Header와 본문은 Figma 위치·크기를 사용한다", asy
     path: "tests/visual/after/post-detail-core.png",
     animations: "disabled",
   });
+});
+
+test("Post Detail Stroke는 반응형 Viewport에서도 유지된다", async ({
+  page,
+}) => {
+  await prepare(page);
+
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/posts/31");
+    await waitForStableDetail(page);
+
+    const metrics = await page
+      .locator(".post-detail-page")
+      .evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const stroke = getComputedStyle(element, "::after");
+        return {
+          width: rect.width,
+          height: rect.height,
+          stroke: stroke.borderLeft,
+          scrollWidth: document.documentElement.scrollWidth,
+        };
+      });
+
+    expect(metrics.width).toBeLessThanOrEqual(480);
+    expect(metrics.height).toBeGreaterThanOrEqual(viewport.height - 37);
+    expect(metrics.stroke).toBe("1px solid rgb(229, 229, 229)");
+    expect(metrics.scrollWidth).toBe(viewport.width);
+  }
 });
 
 test("Post Detail 뒤로가기는 새로고침 없이 Feed로 이동한다", async ({

@@ -331,20 +331,33 @@ test("북마크는 Feed에서 저장하고 목록에서 삭제할 수 있다", a
         x: pageRect.x,
         y: pageRect.y,
         width: pageRect.width,
+        height: pageRect.height,
       },
       headerHeight: headerRect.height,
       stroke: {
         borderLeft: stroke.borderLeft,
+        width: stroke.borderLeftWidth,
+        style: stroke.borderLeftStyle,
+        color: stroke.borderLeftColor,
+        radius: stroke.borderRadius,
         pointerEvents: stroke.pointerEvents,
         position: stroke.position,
         zIndex: stroke.zIndex,
       },
+      radius: getComputedStyle(document.querySelector(".bookmarks-page"))
+        .borderRadius,
     };
   });
-  expect(layout.page).toEqual({ x: 720, y: 40, width: 480 });
+  expect(layout.page).toMatchObject({ x: 720, y: 40, width: 480 });
+  expect(layout.page.height).toBeGreaterThanOrEqual(1040);
   expect(layout.headerHeight).toBe(64);
+  expect(layout.radius).toBe("30px");
   expect(layout.stroke).toEqual({
     borderLeft: "1px solid rgb(229, 229, 229)",
+    width: "1px",
+    style: "solid",
+    color: "rgb(229, 229, 229)",
+    radius: "30px",
     pointerEvents: "none",
     position: "absolute",
     zIndex: "30",
