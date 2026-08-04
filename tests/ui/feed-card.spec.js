@@ -215,7 +215,7 @@ test("Feed Page는 Figma 1920×1080 Layout과 작성 진입 영역을 사용한�
     };
     const pageElement = document.querySelector(".feed-page");
     const heading = document.querySelector(".feed-page__intro h1");
-    const stroke = getComputedStyle(pageElement, "::after");
+    const pageStroke = getComputedStyle(pageElement, "::after");
     return {
       page: measure(".feed-page"),
       heading: measure(".feed-page__intro h1"),
@@ -223,10 +223,14 @@ test("Feed Page는 Figma 1920×1080 Layout과 작성 진입 영역을 사용한�
       publish: measure(".create-trigger b"),
       radius: getComputedStyle(pageElement).borderRadius,
       stroke: {
-        borderLeft: stroke.borderLeft,
-        pointerEvents: stroke.pointerEvents,
-        position: stroke.position,
-        zIndex: stroke.zIndex,
+        borderLeft: pageStroke.borderLeft,
+        width: pageStroke.borderLeftWidth,
+        style: pageStroke.borderLeftStyle,
+        color: pageStroke.borderLeftColor,
+        radius: pageStroke.borderRadius,
+        pointerEvents: pageStroke.pointerEvents,
+        position: pageStroke.position,
+        zIndex: pageStroke.zIndex,
       },
       headingFont: {
         fontSize: getComputedStyle(heading).fontSize,
@@ -244,13 +248,18 @@ test("Feed Page는 Figma 1920×1080 Layout과 작성 진입 영역을 사용한�
     height: 34,
   });
   expect(metrics.publish.height).toBe(34);
-  expect(metrics.radius).toBe("30px 30px 0px 0px");
+  expect(metrics.radius).toBe("30px");
   expect(metrics.stroke).toEqual({
     borderLeft: "1px solid rgb(229, 229, 229)",
+    width: "1px",
+    style: "solid",
+    color: "rgb(229, 229, 229)",
+    radius: "30px",
     pointerEvents: "none",
     position: "absolute",
     zIndex: "30",
   });
+  expect(metrics.page.height).toBeGreaterThanOrEqual(1040);
   expect(metrics.headingFont).toEqual({
     fontSize: "20px",
     fontWeight: "700",
@@ -401,6 +410,38 @@ test("피드 더보기 메뉴는 아래 공간이 부족하면 위로 열린다"
     path: "tests/visual/after/feed-owner-options-above.png",
     animations: "disabled",
   });
+});
+
+test("Feed 콘텐츠 Stroke는 반응형 Viewport에서도 유지된다", async ({
+  page,
+}) => {
+  await prepare(page);
+
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/feed");
+    await waitForStableFeed(page);
+
+    const metrics = await page.locator(".feed-page").evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const stroke = getComputedStyle(element, "::after");
+      return {
+        width: rect.width,
+        height: rect.height,
+        stroke: stroke.borderLeft,
+        scrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+
+    expect(metrics.width).toBeLessThanOrEqual(480);
+    expect(metrics.height).toBeGreaterThanOrEqual(viewport.height - 40);
+    expect(metrics.stroke).toBe("1px solid rgb(229, 229, 229)");
+    expect(metrics.scrollWidth).toBe(viewport.width);
+  }
 });
 
 test("Feed 이미지는 drag만 막고 본문과 클릭 동작은 유지한다", async ({
