@@ -10,10 +10,18 @@ while IFS= read -r use_line; do
     echo "Unpinned or undocumented external Action: ${use_line}" >&2
     failures=$((failures + 1))
   fi
-done < <(rg -N '^[[:space:]]*-[[:space:]]+uses:' "${root}/.github/workflows")
+done < <(grep -RhE '^[[:space:]]*-[[:space:]]+uses:' "${root}/.github/workflows")
 
-if rg -n 'pull_request_target|:[[:space:]]*latest([[:space:]]|$)' "${root}/.github/workflows"; then
+if grep -RInE 'pull_request_target|:[[:space:]]*latest([[:space:]]|$)' "${root}/.github/workflows"; then
   echo "Forbidden workflow trigger or mutable image tag found." >&2
+  failures=$((failures + 1))
+fi
+if grep -RInE 'pull_request:|merge_group:|repository_dispatch:|workflow_call:|PRODUCTION_DEPLOY_ENABLED|PRODUCTION_DISPATCH_ENABLED|BACKEND_DISPATCH_TOKEN|dispatch-backend' "${root}/.github/workflows"; then
+  echo "PR-only or cross-repository production dispatch behavior found." >&2
+  failures=$((failures + 1))
+fi
+if ! grep -qE 'ghcr\.io/bs-stack-lab/ktb4-ian-community-fe' "${root}/.github/workflows/publish-image.yml"; then
+  echo "Frontend publisher does not target the personal GHCR namespace." >&2
   failures=$((failures + 1))
 fi
 [[ "${failures}" -eq 0 ]] || exit 1

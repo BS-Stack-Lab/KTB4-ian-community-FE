@@ -1,11 +1,7 @@
 name: FE / CI
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
-  merge_group:
-    types: [checks_requested]
+  workflow_dispatch:
   push:
     branches: [main]
 
@@ -13,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: fe-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: fe-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -94,8 +90,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
-      BACKEND_BOOTSTRAP_SHA: 69fb7225ae0e2681b12721c0020d9152021a48d7
-      DEPLOYMENT_BOOTSTRAP_SHA: 69fb7225ae0e2681b12721c0020d9152021a48d7
+      BACKEND_BOOTSTRAP_SHA: 43a0884130f8447f2dd28758f01be08dac0d9ae7
+      DEPLOYMENT_BOOTSTRAP_SHA: 43a0884130f8447f2dd28758f01be08dac0d9ae7
       CI_HTTP_PORT: "18080"
     steps:
       - name: Checkout frontend candidate
@@ -105,15 +101,15 @@ jobs:
       - name: Checkout trusted deployment assets
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          repository: 100-hours-a-week/KTB4-ian-week4
-          ref: ${{ vars.DEPLOYMENT_BASELINE_SHA || '69fb7225ae0e2681b12721c0020d9152021a48d7' }}
+          repository: BS-Stack-Lab/KTB4-ian-community-BE
+          ref: ${{ vars.DEPLOYMENT_BASELINE_SHA || '43a0884130f8447f2dd28758f01be08dac0d9ae7' }}
           path: backend-deployment
       - name: Checkout backend bootstrap source
         if: vars.BACKEND_BASELINE_IMAGE == ''
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          repository: 100-hours-a-week/KTB4-ian-week4
-          ref: ${{ vars.BACKEND_BASELINE_SHA || '69fb7225ae0e2681b12721c0020d9152021a48d7' }}
+          repository: BS-Stack-Lab/KTB4-ian-community-BE
+          ref: ${{ vars.BACKEND_BASELINE_SHA || '43a0884130f8447f2dd28758f01be08dac0d9ae7' }}
           path: backend-source
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
@@ -137,7 +133,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           if [[ -n "${APPROVED_IMAGE}" ]]; then
-            [[ "${APPROVED_IMAGE}" =~ ^ghcr\.io/100-hours-a-week/ktb4-ian-week4-community-backend@sha256:[0-9a-f]{64}$ ]]
+            [[ "${APPROVED_IMAGE}" =~ ^ghcr\.io/bs-stack-lab/ktb4-ian-community-be@sha256:[0-9a-f]{64}$ ]]
             docker pull --platform linux/amd64 "${APPROVED_IMAGE}"
             docker tag "${APPROVED_IMAGE}" community-backend:baseline
           else

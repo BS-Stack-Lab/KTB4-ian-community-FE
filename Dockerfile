@@ -22,7 +22,7 @@ COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 FROM scratch AS runtime
 
-ARG OCI_SOURCE=https://github.com/100-hours-a-week/KTB4-ian-community-FE
+ARG OCI_SOURCE=https://github.com/BS-Stack-Lab/KTB4-ian-community-FE
 ARG OCI_REVISION=local
 ARG OCI_VERSION=local
 

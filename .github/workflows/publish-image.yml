@@ -59,7 +59,7 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/100-hours-a-week/ktb4-ian-community-fe:${{ steps.source.outputs.sha }}
+          tags: ghcr.io/bs-stack-lab/ktb4-ian-community-fe:${{ steps.source.outputs.sha }}
           build-args: |
             OCI_REVISION=${{ steps.source.outputs.sha }}
             OCI_VERSION=${{ steps.source.outputs.sha }}
@@ -72,30 +72,6 @@ jobs:
       - name: Attest provenance
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
-          subject-name: ghcr.io/100-hours-a-week/ktb4-ian-community-fe
+          subject-name: ghcr.io/bs-stack-lab/ktb4-ian-community-fe
           subject-digest: ${{ steps.publish.outputs.digest }}
           push-to-registry: true
-
-  dispatch-backend:
-    needs: publish
-    if: vars.PRODUCTION_DISPATCH_ENABLED == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Dispatch verified frontend digest to central CD
-        env:
-          GH_TOKEN: ${{ secrets.BACKEND_DISPATCH_TOKEN }}
-          SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
-          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
-        run: |
-          set -Eeuo pipefail
-          [[ -n "${GH_TOKEN}" ]]
-          [[ "${SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]
-          [[ "${IMAGE_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
-          jq -n \
-            --arg component frontend \
-            --arg source_repository 100-hours-a-week/KTB4-ian-community-FE \
-            --arg source_sha "${SOURCE_SHA}" \
-            --arg image_digest "${IMAGE_DIGEST}" \
-            '{event_type:"frontend-image-published",client_payload:{component:$component,source_repository:$source_repository,source_sha:$source_sha,image_digest:$image_digest}}' \
-            | gh api --method POST repos/100-hours-a-week/KTB4-ian-week4/dispatches --input -
