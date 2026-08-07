@@ -76,9 +76,9 @@ jobs:
           docker buildx build \
             --platform linux/amd64 \
             --load \
-            --tag community-frontend:${GITHUB_SHA} \
-            --build-arg OCI_REVISION=${GITHUB_SHA} \
-            --build-arg OCI_VERSION=${GITHUB_SHA} \
+            --tag "community-frontend:${GITHUB_SHA}" \
+            --build-arg "OCI_REVISION=${GITHUB_SHA}" \
+            --build-arg "OCI_VERSION=${GITHUB_SHA}" \
             .
       - name: Verify static-origin runtime
         env:
@@ -122,9 +122,9 @@ jobs:
           docker buildx build \
             --platform linux/amd64 \
             --load \
-            --tag community-frontend:${GITHUB_SHA} \
-            --build-arg OCI_REVISION=${GITHUB_SHA} \
-            --build-arg OCI_VERSION=${GITHUB_SHA} \
+            --tag "community-frontend:${GITHUB_SHA}" \
+            --build-arg "OCI_REVISION=${GITHUB_SHA}" \
+            --build-arg "OCI_VERSION=${GITHUB_SHA}" \
             frontend
       - name: Prepare approved backend baseline
         env:
@@ -143,8 +143,8 @@ jobs:
               --platform linux/amd64 \
               --load \
               --tag community-backend:baseline \
-              --build-arg OCI_REVISION=${sha} \
-              --build-arg OCI_VERSION=${sha} \
+              --build-arg "OCI_REVISION=${sha}" \
+              --build-arg "OCI_VERSION=${sha}" \
               backend-source
           fi
       - name: Pull pinned infrastructure images
