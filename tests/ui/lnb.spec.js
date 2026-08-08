@@ -69,12 +69,12 @@ async function prepare(page) {
       state.nickname = JSON.parse(requestRoute.request().postData()).nickname;
       return requestRoute.fulfill({ status: 204, headers });
     }
-    if (url.pathname === "/api/posts" && method === "GET")
+    if (url.pathname === "/api/v2/posts" && method === "GET")
       return requestRoute.fulfill({
         json: { data: { content: [post] } },
         headers,
       });
-    if (url.pathname === "/api/posts/1" && method === "GET")
+    if (url.pathname === "/api/v2/posts/1" && method === "GET")
       return requestRoute.fulfill({ json: { data: post }, headers });
     return requestRoute.fulfill({ status: 204, headers });
   });

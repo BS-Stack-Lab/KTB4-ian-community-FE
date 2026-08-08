@@ -55,7 +55,7 @@ async function prepare(page, { updateFails = false, updateDelay = 0 } = {}) {
         },
         headers: cors,
       });
-    if (url.pathname === "/api/posts/31" && request.method() === "GET")
+    if (url.pathname === "/api/v2/posts/31" && request.method() === "GET")
       return route.fulfill({
         json: {
           data: {

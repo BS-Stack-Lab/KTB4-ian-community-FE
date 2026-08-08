@@ -3,6 +3,17 @@ import { userApi } from "../../../entities/user/api/userApi.js";
 import { UserAvatar } from "../../../entities/user/ui/UserAvatar.jsx";
 import { backLeftIcon, cameraIcon } from "../../../shared/assets/index.js";
 import { Modal } from "../../../shared/ui/Modal.jsx";
+import { ImageEditor } from "../../media/ui/ImageEditor.jsx";
+import {
+  createOrientedPreview,
+  defaultNormalizedCrop,
+} from "../../media/lib/imagePreview.js";
+import { uploadMedia } from "../../media/model/mediaOrchestrator.js";
+import {
+  normalizeMedia,
+  preferredVariant,
+} from "../../../entities/media/model/mediaModel.js";
+import { mediaApi } from "../../../entities/media/api/mediaApi.js";
 
 export function EditProfileModal({
   open,
@@ -14,6 +25,8 @@ export function EditProfileModal({
   const [nickname, setNickname] = useState("");
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const [preparedMedia, setPreparedMedia] = useState(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef(null);
@@ -28,6 +41,8 @@ export function EditProfileModal({
     setNickname(user.nickname);
     setFile(null);
     setPreview(null);
+    setEdit(null);
+    setPreparedMedia(null);
     setPending(false);
     setError("");
     if (inputRef.current) inputRef.current.value = "";
@@ -35,15 +50,49 @@ export function EditProfileModal({
 
   useEffect(
     () => () => {
-      if (preview) URL.revokeObjectURL(preview);
+      if (preview?.url) URL.revokeObjectURL(preview.url);
     },
     [preview],
   );
 
-  function choose(event) {
+  async function choose(event) {
     const next = event.target.files[0] || null;
-    setFile(next);
-    setPreview(next ? URL.createObjectURL(next) : null);
+    if (!next) return;
+    if (next.size > 1024 * 1024) {
+      setError("프로필 이미지는 1MiB 이하만 업로드할 수 있습니다.");
+      return;
+    }
+    try {
+      const nextPreview = await createOrientedPreview(next);
+      setFile(next);
+      setPreview(nextPreview);
+      setPreparedMedia(null);
+      setEdit({
+        purpose: "PROFILE",
+        frame: "PROFILE",
+        rotation: 0,
+        crop: defaultNormalizedCrop(nextPreview.width, nextPreview.height, 1),
+      });
+      setError("");
+    } catch (cause) {
+      setError(cause.message || "이미지 미리보기를 만들 수 없습니다.");
+    }
+  }
+
+  function cancelImage() {
+    if (preparedMedia?.mediaId) {
+      mediaApi.cancel(preparedMedia.mediaId).catch(() => {});
+    }
+    setFile(null);
+    setPreview(null);
+    setEdit(null);
+    setPreparedMedia(null);
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  function cancelAndClose() {
+    cancelImage();
+    onClose();
   }
 
   async function submit() {
@@ -53,14 +102,23 @@ export function EditProfileModal({
     setError("");
     try {
       let profileImage = user.profileImage;
+      let profileMedia = user.profileMedia ?? null;
       if (file) {
-        const result = await userApi.updateProfileImage(user.userId, file);
-        profileImage =
-          result?.profileImage ?? result?.profile_image ?? profileImage;
+        let media = preparedMedia;
+        if (!media) {
+          media = await uploadMedia(file, edit);
+          setPreparedMedia(media);
+        }
+        const result = await userApi.updateProfileMedia(
+          user.userId,
+          media.mediaId,
+        );
+        profileMedia = normalizeMedia(result);
+        profileImage = preferredVariant(profileMedia, 160)?.url ?? profileImage;
       }
       if (nicknameChanged)
         await userApi.updateNickname(user.userId, nicknameValue);
-      onUpdated({ nickname: nicknameValue, profileImage });
+      onUpdated({ nickname: nicknameValue, profileImage, profileMedia });
       setPreview(null);
       setFile(null);
       if (inputRef.current) inputRef.current.value = "";
@@ -77,11 +135,15 @@ export function EditProfileModal({
     <Modal
       open={open}
       title="프로필 편집"
-      onClose={pending ? undefined : onClose}
+      onClose={pending ? undefined : cancelAndClose}
       className="profile-edit-modal"
     >
       <header className="profile-edit-header">
-        <button type="button" aria-label="프로필 편집 닫기" onClick={onClose}>
+        <button
+          type="button"
+          aria-label="프로필 편집 닫기"
+          onClick={cancelAndClose}
+        >
           <img src={backLeftIcon} alt="" />
         </button>
         <strong>프로필 편집</strong>
@@ -89,7 +151,8 @@ export function EditProfileModal({
       <section className="profile-editor">
         <label className="profile-editor__avatar">
           <UserAvatar
-            profileImage={preview || user.profileImage}
+            profileImage={preview?.url || user.profileImage}
+            profileMedia={preview ? null : user.profileMedia}
             nickname={user.nickname}
             size={160}
           />
@@ -104,6 +167,27 @@ export function EditProfileModal({
             disabled={pending}
           />
         </label>
+        {preview?.width && (
+          <ImageEditor
+            source={preview.url}
+            purpose="PROFILE"
+            width={preview.width}
+            height={preview.height}
+            initialFrame="PROFILE"
+            disabled={pending}
+            onChange={setEdit}
+          />
+        )}
+        {preview && (
+          <button
+            className="profile-editor__cancel-image"
+            type="button"
+            onClick={cancelImage}
+            disabled={pending}
+          >
+            이미지 업로드 취소
+          </button>
+        )}
         <div className="profile-editor__fields">
           <input aria-label="이메일" value={user.email} readOnly />
           <input

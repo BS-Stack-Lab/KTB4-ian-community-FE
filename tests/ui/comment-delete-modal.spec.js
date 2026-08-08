@@ -39,7 +39,7 @@ async function prepare(page, { fails = false, delay = 0 } = {}) {
         json: { data: { user_id: 7, nickname: "dlkfjs" } },
         headers: cors,
       });
-    if (path === "/api/posts/31" && request.method() === "GET")
+    if (path === "/api/v2/posts/31" && request.method() === "GET")
       return route.fulfill({
         json: {
           data: {

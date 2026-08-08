@@ -52,7 +52,7 @@ async function prepare(page, { updateFails = false, updateDelay = 0 } = {}) {
       });
     if (url.pathname === "/api/users/me")
       return route.fulfill({ json: { data: user }, headers: cors });
-    if (url.pathname === "/api/posts" && request.method() === "GET")
+    if (url.pathname === "/api/v2/posts" && request.method() === "GET")
       return route.fulfill({
         json: {
           data: {
@@ -64,6 +64,48 @@ async function prepare(page, { updateFails = false, updateDelay = 0 } = {}) {
                 author_name: "dlkfjs",
                 profile_image: "/images/profile-default.svg",
                 image_url: "/images/feed/edit-fixture.jpg",
+              },
+            ],
+          },
+        },
+        headers: cors,
+      });
+    if (url.pathname === "/api/v2/media/uploads" && request.method() === "POST")
+      return route.fulfill({
+        json: {
+          data: {
+            mediaId: "feed-edit-media",
+            status: "PENDING_UPLOAD",
+            upload: {
+              url: "http://127.0.0.1:8080/test-media-upload",
+              fields: { key: "private/uploads/feed-edit-media/source" },
+            },
+          },
+        },
+        headers: cors,
+      });
+    if (url.pathname === "/test-media-upload" && request.method() === "POST")
+      return route.fulfill({ status: 204, headers: cors });
+    if (
+      url.pathname === "/api/v2/media/feed-edit-media/complete" &&
+      request.method() === "POST"
+    )
+      return route.fulfill({
+        json: {
+          data: {
+            mediaId: "feed-edit-media",
+            status: "READY",
+            frame: "POST_LANDSCAPE",
+            mediaRevision: 1,
+            transformVersion: 1,
+            variants: [
+              {
+                type: "POST_LANDSCAPE_1X",
+                url: "/images/feed/edit-fixture.jpg",
+                width: 448,
+                height: 288,
+                mimeType: "image/webp",
+                fileSize: 1024,
               },
             ],
           },
@@ -129,7 +171,7 @@ test("피드 수정 Modal은 Figma 구조와 수치로 렌더링된다", async (
   const dialog = page.getByRole("dialog", { name: "피드 편집" });
   await expect(dialog.locator(".feed-editor__preview")).toHaveAttribute(
     "data-preview-kind",
-    "existing",
+    "original-legacy",
   );
   await expect(dialog.getByLabel("피드 본문")).toHaveValue(initialContent);
 
@@ -227,7 +269,7 @@ test("변경 상태, Blob Preview, 제거 상태를 구분한다", async ({ page
   await textarea.fill("수정할 본문");
   await expect(submit).toBeEnabled();
   await expect(submit).toHaveCSS("background-color", "rgb(23, 23, 23)");
-  await expect(dialog.getByAltText("기존 피드 이미지")).toHaveAttribute(
+  await expect(dialog.getByAltText("피드 이미지 미리보기")).toHaveAttribute(
     "draggable",
     "false",
   );
@@ -239,18 +281,29 @@ test("변경 상태, Blob Preview, 제거 상태를 구분한다", async ({ page
   await dialog
     .locator('input[type="file"]')
     .setInputFiles("tests/fixtures/feed-create-reference.jpg");
-  await expect(dialog.locator(".feed-editor__preview")).toHaveAttribute(
+  const imageEditor = page.getByRole("dialog", { name: "이미지 편집" });
+  await expect(imageEditor).toBeVisible();
+  await imageEditor.getByRole("button", { name: "이미지 첨부" }).click();
+  const reopenedDialog = page.getByRole("dialog", { name: "피드 편집" });
+  await expect(reopenedDialog).toBeVisible();
+  await expect(reopenedDialog.locator(".feed-editor__preview")).toHaveAttribute(
     "data-preview-kind",
-    "blob",
+    "new",
   );
-  await expect(submit).toBeEnabled();
+  await expect(
+    reopenedDialog.getByRole("button", { name: "피드 수정" }),
+  ).toBeEnabled();
   await page.screenshot({
     path: "tests/visual/actual/feed-edit-modal-blob-preview.png",
     fullPage: true,
   });
-  await dialog.getByRole("button", { name: "피드 이미지 제거" }).click();
-  await expect(dialog.locator(".feed-editor__preview")).toHaveCount(0);
-  await expect(submit).toBeEnabled();
+  await reopenedDialog
+    .getByRole("button", { name: "피드 이미지 제거" })
+    .click();
+  await expect(reopenedDialog.locator(".feed-editor__preview")).toHaveCount(0);
+  await expect(
+    reopenedDialog.getByRole("button", { name: "피드 수정" }),
+  ).toBeEnabled();
   await page.screenshot({
     path: "tests/visual/actual/feed-edit-modal-image-removed.png",
     fullPage: true,

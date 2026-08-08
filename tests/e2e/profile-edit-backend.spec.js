@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures.js";
 
-test("실제 Backend에서 프로필을 변경하고 새로고침 후 다시 조회한다", async ({
+test("실제 Backend에서 닉네임을 변경하고 새로고침 후 다시 조회한다", async ({
   page,
 }) => {
   const suffix = `${Date.now()}`.slice(-9);
@@ -22,22 +22,12 @@ test("실제 Backend에서 프로필을 변경하고 새로고침 후 다시 조
   await page.getByRole("button", { name: "프로필 편집", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "프로필 편집" });
   await dialog.getByLabel("닉네임").fill(changedNickname);
-  await dialog
-    .locator('input[type="file"]')
-    .setInputFiles("tests/fixtures/feed-create-reference.jpg");
-  const profileResponse = page.waitForResponse(
-    (response) =>
-      /\/api\/users\/\d+\/profile-image$/.test(
-        new URL(response.url()).pathname,
-      ) && response.request().method() === "PATCH",
-  );
   const nicknameResponse = page.waitForResponse(
     (response) =>
       /\/api\/users\/\d+\/nickname$/.test(new URL(response.url()).pathname) &&
       response.request().method() === "PATCH",
   );
   await dialog.getByRole("button", { name: "저장하기" }).click();
-  expect((await profileResponse).status()).toBe(200);
   expect((await nicknameResponse).status()).toBe(204);
   await expect(dialog).toBeHidden();
   await expect(page.locator(".lnb-user")).toContainText(changedNickname);

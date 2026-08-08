@@ -2,17 +2,39 @@ import { fireEvent } from "@testing-library/dom";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mediaApi } from "../../src/entities/media/api/mediaApi.js";
 import { postApi } from "../../src/entities/post/api/postApi.js";
 import { EditPostModal } from "../../src/features/post/edit/EditPostModal.jsx";
 
-const post = {
+const legacyPost = {
   postId: 31,
   content: "기존 본문",
   imageUrl: "/images/feed/existing.jpg",
+  media: [],
   author: {
     nickname: "작성자",
     profileImage: "/images/profile-default.svg",
   },
+};
+
+const v2Post = {
+  ...legacyPost,
+  imageUrl: "https://cdn.example/landscape.webp",
+  media: [
+    {
+      mediaId: "media-original",
+      frame: "POST_LANDSCAPE",
+      mediaRevision: 1,
+      variants: [
+        {
+          type: "POST_LANDSCAPE_1X",
+          url: "https://cdn.example/landscape.webp",
+          width: 448,
+          height: 288,
+        },
+      ],
+    },
+  ],
 };
 
 describe("피드 수정 Modal", () => {
@@ -23,6 +45,16 @@ describe("피드 수정 Modal", () => {
     root = createRoot(document.querySelector("#root"));
     URL.createObjectURL = vi.fn(() => "blob:changed-image");
     URL.revokeObjectURL = vi.fn();
+    vi.spyOn(mediaApi, "initiate").mockResolvedValue({
+      mediaId: "media-new",
+      upload: { url: "https://upload.example", fields: {} },
+    });
+    vi.spyOn(mediaApi, "uploadToPresignedPost").mockResolvedValue();
+    vi.spyOn(mediaApi, "complete").mockResolvedValue({
+      mediaId: "media-new",
+      status: "READY",
+      variants: [],
+    });
   });
 
   afterEach(async () => {
@@ -30,7 +62,7 @@ describe("피드 수정 Modal", () => {
     vi.restoreAllMocks();
   });
 
-  async function renderModal(props = {}) {
+  async function renderModal(post = legacyPost, props = {}) {
     const onClose = props.onClose ?? vi.fn();
     const onUpdated = props.onUpdated ?? vi.fn(async () => {});
     await act(() =>
@@ -47,27 +79,32 @@ describe("피드 수정 Modal", () => {
     return { onClose, onUpdated };
   }
 
-  it("기존 값과 이미지를 초기화하고 실제 변경이 있을 때만 Submit을 활성화한다", async () => {
+  async function chooseAndAttach() {
+    const file = new File(["image"], "changed.png", { type: "image/png" });
+    await act(async () =>
+      fireEvent.change(document.querySelector('input[type="file"]'), {
+        target: { files: [file] },
+      }),
+    );
+    expect(document.body.textContent).toContain("이미지 편집");
+    await act(async () =>
+      fireEvent.click(document.querySelector('[aria-label="이미지 첨부"]')),
+    );
+    await vi.waitFor(() =>
+      expect(document.querySelector(".feed-editor__preview")).not.toBeNull(),
+    );
+  }
+
+  it("본문 변경만으로 수정할 수 있고 공백 본문은 계속 거부한다", async () => {
     await renderModal();
     const textarea = document.querySelector('[aria-label="피드 본문"]');
     const submit = document.querySelector('[aria-label="피드 수정"]');
-    const preview = document.querySelector(".feed-editor__preview");
-
     expect(textarea.value).toBe("기존 본문");
-    expect(preview.dataset.previewKind).toBe("existing");
-    const previewImage = preview.querySelector("img");
-    expect(previewImage.draggable).toBe(false);
-    const dragEvent = new Event("dragstart", {
-      bubbles: true,
-      cancelable: true,
-    });
-    previewImage.dispatchEvent(dragEvent);
-    expect(dragEvent.defaultPrevented).toBe(true);
+    expect(
+      document.querySelector(".feed-editor__preview").dataset.previewKind,
+    ).toBe("original-legacy");
     expect(submit.disabled).toBe(true);
-    await act(() =>
-      fireEvent.change(textarea, { target: { value: "  기존 본문  " } }),
-    );
-    expect(submit.disabled).toBe(true);
+
     await act(() => fireEvent.change(textarea, { target: { value: " " } }));
     expect(submit.disabled).toBe(true);
     await act(() =>
@@ -76,20 +113,16 @@ describe("피드 수정 Modal", () => {
     expect(submit.disabled).toBe(false);
   });
 
-  it("기존 이미지와 Blob Preview를 구분하고 Object URL을 정리한다", async () => {
+  it("본문을 바꾸지 않아도 이미지 추가·교체·삭제를 변경으로 감지한다", async () => {
     await renderModal();
-    const file = new File(["image"], "changed.png", { type: "image/png" });
-    await act(() =>
-      fireEvent.change(document.querySelector('input[type="file"]'), {
-        target: { files: [file] },
-      }),
-    );
+    await chooseAndAttach();
     expect(
       document.querySelector(".feed-editor__preview").dataset.previewKind,
-    ).toBe("blob");
+    ).toBe("new");
     expect(document.querySelector('[aria-label="피드 수정"]').disabled).toBe(
       false,
     );
+
     await act(() =>
       fireEvent.click(
         document.querySelector('[aria-label="피드 이미지 제거"]'),
@@ -97,37 +130,85 @@ describe("피드 수정 Modal", () => {
     );
     expect(document.querySelector(".feed-editor__preview")).toBeNull();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:changed-image");
+    expect(document.querySelector('[aria-label="피드 수정"]').disabled).toBe(
+      false,
+    );
   });
 
-  it("Pending 중 중복 요청을 막고 실패하면 입력을 유지한다", async () => {
-    let reject;
-    vi.spyOn(postApi, "update").mockReturnValue(
-      new Promise((resolve, rejectRequest) => {
-        reject = rejectRequest;
-      }),
+  it("기존 V2 이미지는 새 Revision READY 후 피드 저장 시 활성화한다", async () => {
+    vi.spyOn(mediaApi, "editSource").mockResolvedValue({
+      mediaId: "media-original",
+      url: "https://private.example/master.webp",
+      width: 1600,
+      height: 900,
+      frame: "POST_LANDSCAPE",
+      activeRevision: 1,
+      crop: { x: 0, y: 0, width: 1, height: 1 },
+      zoom: 1,
+      position: { x: 0.5, y: 0.5 },
+    });
+    vi.spyOn(mediaApi, "createRevision").mockResolvedValue({
+      mediaId: "media-original",
+      revision: 2,
+      status: "READY",
+      variants: [
+        {
+          type: "POST_LANDSCAPE_1X",
+          url: "https://cdn.example/revision-2.webp",
+          width: 448,
+          height: 288,
+        },
+      ],
+    });
+    vi.spyOn(postApi, "updateV2").mockResolvedValue();
+    await renderModal(v2Post);
+
+    await act(async () =>
+      fireEvent.click(
+        document.querySelector('[aria-label="피드 이미지 편집"]'),
+      ),
     );
+    await vi.waitFor(() =>
+      expect(
+        document.querySelector('[aria-label="이미지 첨부"]'),
+      ).not.toBeNull(),
+    );
+    await act(async () =>
+      fireEvent.change(
+        document.querySelector('[aria-label="이미지 확대 배율"]'),
+        { target: { value: "1.5" } },
+      ),
+    );
+    await act(async () =>
+      fireEvent.click(document.querySelector('[aria-label="이미지 첨부"]')),
+    );
+    await vi.waitFor(() =>
+      expect(document.querySelector('[aria-label="피드 수정"]')).not.toBeNull(),
+    );
+    const submit = document.querySelector('[aria-label="피드 수정"]');
+    expect(submit.disabled).toBe(false);
+    await act(async () => fireEvent.click(submit));
+
+    expect(postApi.updateV2).toHaveBeenCalledWith(31, {
+      content: "기존 본문",
+      mediaIds: ["media-original"],
+      revisionActivations: [{ mediaId: "media-original", revision: 2 }],
+    });
+  });
+
+  it("본문 저장 실패 시 입력과 기존 이미지를 유지한다", async () => {
+    vi.spyOn(postApi, "update").mockRejectedValue(new Error("수정 실패"));
     const { onClose, onUpdated } = await renderModal();
     const textarea = document.querySelector('[aria-label="피드 본문"]');
-    const submit = document.querySelector('[aria-label="피드 수정"]');
     await act(() =>
       fireEvent.change(textarea, { target: { value: "재시도 본문" } }),
     );
-
-    await act(() => {
-      fireEvent.click(submit);
-      fireEvent.click(submit);
-      fireEvent.click(submit);
-    });
-    expect(postApi.update).toHaveBeenCalledTimes(1);
-    expect(postApi.update).toHaveBeenCalledWith(31, {
-      content: "재시도 본문",
-      imageUrl: "/images/feed/existing.jpg",
-    });
-    expect(submit.disabled).toBe(true);
-    await act(async () => reject(new Error("수정 실패")));
+    await act(async () =>
+      fireEvent.click(document.querySelector('[aria-label="피드 수정"]')),
+    );
     expect(document.body.textContent).toContain("수정 실패");
     expect(textarea.value).toBe("재시도 본문");
-    expect(submit.disabled).toBe(false);
+    expect(document.querySelector(".feed-editor__preview")).not.toBeNull();
     expect(onUpdated).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });

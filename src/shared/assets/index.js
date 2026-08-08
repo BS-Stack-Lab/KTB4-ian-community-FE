@@ -1,6 +1,9 @@
 export { default as cameraIcon } from "./icons/Camera.svg";
 export { default as commentIcon } from "./icons/Comment.svg";
 export { default as directionTopIcon } from "./icons/direction_top.svg";
+export { default as feedImageEditTickIcon } from "./icons/feed-image-edit-tick.svg";
+export { default as feedImageEditRefreshCornerIcon } from "./icons/feed-image-edit-refresh-corner.svg";
+export { default as feedImageEditRefreshArcIcon } from "./icons/feed-image-edit-refresh-arc.svg";
 export { default as backLeftIcon } from "./icons/back-left.svg";
 export { default as moreDotsIcon } from "./icons/more-dots.svg";
 export { default as feedPreviewCloseLeftIcon } from "./icons/feed-preview-close-left.svg";

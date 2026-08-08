@@ -12,6 +12,7 @@ const figmaContent =
 
 async function prepare(page, { createFails = false, createDelay = 0 } = {}) {
   let createCount = 0;
+  let mediaCount = 0;
   const consoleErrors = [];
   const failedAssets = [];
   page.on("console", (message) => {
@@ -52,12 +53,69 @@ async function prepare(page, { createFails = false, createDelay = 0 } = {}) {
       });
     if (url.pathname === "/api/users/me")
       return route.fulfill({ json: { data: user }, headers: cors });
-    if (url.pathname === "/api/posts" && request.method() === "GET")
+    if (url.pathname === "/api/v2/posts" && request.method() === "GET")
       return route.fulfill({
         json: { data: { content: [] } },
         headers: cors,
       });
-    if (url.pathname === "/api/posts/me" && request.method() === "POST") {
+    if (
+      url.pathname === "/api/v2/media/uploads" &&
+      request.method() === "POST"
+    ) {
+      mediaCount += 1;
+      const mediaId = `feed-create-media-${mediaCount}`;
+      return route.fulfill({
+        json: {
+          data: {
+            mediaId,
+            status: "PENDING_UPLOAD",
+            upload: {
+              url: "http://127.0.0.1:8080/test-media-upload",
+              fields: { key: `private/uploads/${mediaId}/source` },
+            },
+          },
+        },
+        headers: cors,
+      });
+    }
+    if (url.pathname === "/test-media-upload" && request.method() === "POST")
+      return route.fulfill({ status: 204, headers: cors });
+    if (
+      /^\/api\/v2\/media\/feed-create-media-\d+\/complete$/.test(
+        url.pathname,
+      ) &&
+      request.method() === "POST"
+    ) {
+      const mediaId = url.pathname.split("/").at(-2);
+      return route.fulfill({
+        json: {
+          data: {
+            mediaId,
+            status: "READY",
+            frame: "POST_LANDSCAPE",
+            mediaRevision: 1,
+            transformVersion: 1,
+            variants: [
+              {
+                type: "POST_LANDSCAPE_1X",
+                url: "/images/feed/edit-fixture.jpg",
+                width: 448,
+                height: 288,
+                mimeType: "image/webp",
+                fileSize: 1024,
+              },
+            ],
+          },
+        },
+        headers: cors,
+      });
+    }
+    if (
+      /^\/api\/v2\/media\/feed-create-media-\d+$/.test(url.pathname) &&
+      request.method() === "DELETE"
+    )
+      return route.fulfill({ status: 204, headers: cors });
+    if (url.pathname === "/api/v2/posts/me" && request.method() === "POST") {
       createCount += 1;
       if (createDelay)
         await new Promise((resolve) => setTimeout(resolve, createDelay));
@@ -74,6 +132,13 @@ async function prepare(page, { createFails = false, createDelay = 0 } = {}) {
         status: 200,
         contentType: "image/svg+xml",
         body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="60" fill="#fff"/><circle cx="60" cy="44" r="20" fill="#a1a1a1"/><path d="M24 104c4-24 18-36 36-36s32 12 36 36" fill="#a1a1a1"/></svg>',
+        headers: cors,
+      });
+    if (url.pathname === "/images/feed/edit-fixture.jpg")
+      return route.fulfill({
+        status: 200,
+        contentType: "image/jpeg",
+        path: "tests/fixtures/feed-create-reference.jpg",
         headers: cors,
       });
     return route.fulfill({ status: 204, headers: cors });
@@ -101,6 +166,10 @@ async function setReferenceImage(page) {
   await page
     .locator('.feed-create-modal input[type="file"]')
     .setInputFiles("tests/fixtures/feed-create-reference.jpg");
+  const imageEditor = page.getByRole("dialog", { name: "이미지 편집" });
+  await expect(imageEditor).toBeVisible();
+  await imageEditor.getByRole("button", { name: "이미지 첨부" }).click();
+  await expect(page.getByRole("dialog", { name: "피드 생성" })).toBeVisible();
   await expect(page.getByAltText("선택한 이미지 미리보기")).toBeVisible();
   await page.getByAltText("선택한 이미지 미리보기").evaluate(
     (image) =>

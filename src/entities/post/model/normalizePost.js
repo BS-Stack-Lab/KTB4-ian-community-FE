@@ -1,10 +1,23 @@
 import { normalizeUser } from "../../user/model/normalizeUser.js";
+import {
+  normalizeMedia,
+  preferredVariant,
+} from "../../media/model/mediaModel.js";
 
 export function normalizePost(raw = {}) {
+  const media = (raw.media || []).map(normalizeMedia).filter(Boolean);
+  const mediaImage = preferredVariant(media[0], 448)?.url;
   return {
     postId: raw.postId ?? raw.post_id,
     content: raw.content ?? raw.title ?? "",
-    imageUrl: raw.imageUrl ?? raw.image_url ?? null,
+    imageUrl:
+      mediaImage ??
+      raw.legacyImageUrl ??
+      raw.legacy_image_url ??
+      raw.imageUrl ??
+      raw.image_url ??
+      null,
+    media,
     author: normalizeUser(raw.author ?? raw),
     likeCount: raw.likeCount ?? raw.like_count ?? 0,
     commentCount:

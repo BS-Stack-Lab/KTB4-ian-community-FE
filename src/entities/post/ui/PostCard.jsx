@@ -12,6 +12,7 @@ import {
   moreDotsIcon,
 } from "../../../shared/assets/index.js";
 import { OptionMenu } from "../../../shared/ui/OptionMenu.jsx";
+import { responsiveImage } from "../../media/model/mediaModel.js";
 
 export function PostCard({
   post,
@@ -24,10 +25,12 @@ export function PostCard({
   onEdit,
   onDelete,
   ownerOptionsInFooter = false,
+  imagePriority = false,
 }) {
   const [imageOrientation, setImageOrientation] = useState("landscape");
   const [optionsOpen, setOptionsOpen] = useState(false);
   const optionsTriggerRef = useRef(null);
+  const responsive = responsiveImage(post.media?.[0], 448);
 
   return (
     <article
@@ -54,6 +57,7 @@ export function PostCard({
           <span className="identity">
             <UserAvatar
               profileImage={post.author.profileImage}
+              profileMedia={post.author.profileMedia}
               nickname={post.author.nickname}
             />
             <strong>{post.author.nickname}</strong>
@@ -102,6 +106,10 @@ export function PostCard({
           <img
             className={`post-card__image post-card__image--${imageOrientation}`}
             src={apiAssetUrl(post.imageUrl, null)}
+            srcSet={responsive?.srcSet}
+            sizes="(max-width: 448px) 100vw, 448px"
+            loading={imagePriority ? "eager" : "lazy"}
+            fetchPriority={imagePriority ? "high" : "auto"}
             alt="피드 첨부 이미지"
             draggable={false}
             onDragStart={(event) => event.preventDefault()}

@@ -73,7 +73,7 @@ test("Not Found는 Community Layout과 SPA 피드 복귀를 제공한다", async
 }) => {
   await seedSession(page);
   await routeUser(page);
-  await page.route("http://127.0.0.1:8080/api/posts?*", (route) =>
+  await page.route("http://127.0.0.1:8080/api/v2/posts?*", (route) =>
     route.fulfill({ json: { data: { content: [] } }, headers: cors }),
   );
   await page.goto("/없는-주소");
@@ -97,7 +97,7 @@ test("Feed 오류는 Retry 후 Content로 회복한다", async ({ page }) => {
   await seedSession(page);
   await routeUser(page);
   let requestCount = 0;
-  await page.route("http://127.0.0.1:8080/api/posts?*", (route) => {
+  await page.route("http://127.0.0.1:8080/api/v2/posts?*", (route) => {
     requestCount += 1;
     if (requestCount === 1)
       return route.fulfill({
@@ -123,10 +123,10 @@ test("빈 Feed와 Bookmark의 Stroke는 Viewport 하단까지 유지된다", asy
 }) => {
   await seedSession(page);
   await routeUser(page);
-  await page.route("http://127.0.0.1:8080/api/posts?*", (route) =>
+  await page.route("http://127.0.0.1:8080/api/v2/posts?*", (route) =>
     route.fulfill({ json: { data: { content: [] } }, headers: cors }),
   );
-  await page.route("http://127.0.0.1:8080/api/posts/bookmarks?*", (route) =>
+  await page.route("http://127.0.0.1:8080/api/v2/posts/bookmarks?*", (route) =>
     route.fulfill({ json: { data: { content: [] } }, headers: cors }),
   );
 
@@ -181,7 +181,7 @@ test("Post Detail 오류는 Header를 유지하고 Retry 후 본문을 표시한
   await seedSession(page);
   await routeUser(page);
   let requestCount = 0;
-  await page.route("http://127.0.0.1:8080/api/posts/31", (route) => {
+  await page.route("http://127.0.0.1:8080/api/v2/posts/31", (route) => {
     requestCount += 1;
     if (requestCount === 1)
       return route.fulfill({

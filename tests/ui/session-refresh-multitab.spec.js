@@ -52,7 +52,7 @@ test("동시에 만료 임박한 두 탭은 Web Lock으로 Refresh를 한 번만
           profileImage: null,
         },
       });
-    if (url.pathname === "/api/posts")
+    if (url.pathname === "/api/v2/posts")
       return route.fulfill({
         headers: cors,
         json: { data: { content: [] } },
