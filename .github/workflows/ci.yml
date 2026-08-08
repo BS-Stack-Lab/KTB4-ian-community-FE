@@ -92,8 +92,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
-      BACKEND_BOOTSTRAP_SHA: 43a0884130f8447f2dd28758f01be08dac0d9ae7
-      DEPLOYMENT_BOOTSTRAP_SHA: 43a0884130f8447f2dd28758f01be08dac0d9ae7
+      BACKEND_BOOTSTRAP_SHA: 8b8d5868a5e9020efdc4d3bf5cf235488dce6647
+      DEPLOYMENT_BOOTSTRAP_SHA: 8b8d5868a5e9020efdc4d3bf5cf235488dce6647
       CI_HTTP_PORT: "18080"
     steps:
       - name: Checkout frontend candidate
@@ -104,14 +104,14 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: BS-Stack-Lab/KTB4-ian-community-BE
-          ref: ${{ vars.DEPLOYMENT_BASELINE_SHA || '43a0884130f8447f2dd28758f01be08dac0d9ae7' }}
+          ref: ${{ vars.DEPLOYMENT_BASELINE_SHA || '8b8d5868a5e9020efdc4d3bf5cf235488dce6647' }}
           path: backend-deployment
       - name: Checkout backend bootstrap source
         if: vars.BACKEND_BASELINE_IMAGE == ''
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: BS-Stack-Lab/KTB4-ian-community-BE
-          ref: ${{ vars.BACKEND_BASELINE_SHA || '43a0884130f8447f2dd28758f01be08dac0d9ae7' }}
+          ref: ${{ vars.BACKEND_BASELINE_SHA || '8b8d5868a5e9020efdc4d3bf5cf235488dce6647' }}
           path: backend-source
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
@@ -188,6 +188,15 @@ jobs:
           COMPOSE_ROOT=${compose_root}
           FRONTEND_ORIGIN=http://127.0.0.1:${CI_HTTP_PORT}
           COOKIE_SECURE=false
+          MEDIA_V2_ENABLED=false
+          MEDIA_BUCKET=community-media-ci
+          MEDIA_QUEUE_URL=https://sqs.ap-northeast-2.amazonaws.com/000000000000/community-media-ci
+          MEDIA_API_ROLE_ARN=arn:aws:iam::000000000000:role/community-media-api-ci
+          MEDIA_WORKER_ROLE_ARN=arn:aws:iam::000000000000:role/community-media-worker-ci
+          MEDIA_CDN_BASE_URL=https://example.cloudfront.net
+          MEDIA_DISTRIBUTION_ID=E0000000000000
+          MEDIA_ENVIRONMENT=ci
+          MEDIA_TRANSFORM_VERSION=1
           CI_HTTP_PORT=${CI_HTTP_PORT}
           EOF
           echo "SMOKE_ROOT=${root}" >>"${GITHUB_ENV}"

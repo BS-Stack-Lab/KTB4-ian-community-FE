@@ -22,7 +22,7 @@ test("실제 Backend에서 Bookmark와 10개 Slice를 화면 전체 흐름으로
     await page.getByLabel("피드 본문").fill(content);
     const createResponse = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname === "/api/posts/me" &&
+        new URL(response.url()).pathname === "/api/v2/posts/me" &&
         response.request().method() === "POST",
     );
     await page.getByRole("button", { name: "피드 게시", exact: true }).click();
@@ -38,7 +38,7 @@ test("실제 Backend에서 Bookmark와 10개 Slice를 화면 전체 흐름으로
   const firstSliceResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return (
-      url.pathname === "/api/posts" &&
+      url.pathname === "/api/v2/posts" &&
       url.searchParams.get("page") === "0" &&
       url.searchParams.get("size") === "10" &&
       response.request().method() === "GET"

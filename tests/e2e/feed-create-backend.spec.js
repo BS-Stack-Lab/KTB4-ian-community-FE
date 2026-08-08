@@ -21,12 +21,9 @@ test("실제 Backend에서 피드를 생성하고 새로고침 후 다시 조회
 
   await page.getByRole("button", { name: "피드 게시하기" }).click();
   await page.getByLabel("피드 본문").fill(content);
-  await page
-    .locator('.feed-create-modal input[type="file"]')
-    .setInputFiles("tests/fixtures/feed-create-reference.jpg");
   const responsePromise = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname === "/api/posts/me" &&
+      new URL(response.url()).pathname === "/api/v2/posts/me" &&
       response.request().method() === "POST",
   );
   await page.getByRole("button", { name: "피드 게시", exact: true }).click();
@@ -36,30 +33,12 @@ test("실제 Backend에서 피드를 생성하고 새로고침 후 다시 조회
   await page.reload();
   await expect(page.getByText(content)).toBeVisible();
   const createdCard = page.locator(".post-card").filter({ hasText: content });
-  const feedImage = createdCard.getByAltText("피드 첨부 이미지");
-  await expect(feedImage).toBeVisible();
-  await expect(feedImage).toHaveAttribute("draggable", "false");
-  expect(
-    await feedImage.evaluate((element) => {
-      const event = new DragEvent("dragstart", {
-        bubbles: true,
-        cancelable: true,
-      });
-      element.dispatchEvent(event);
-      return {
-        defaultPrevented: event.defaultPrevented,
-        userSelect: getComputedStyle(element).userSelect,
-      };
-    }),
-  ).toEqual({ defaultPrevented: true, userSelect: "none" });
   expect(
     await createdCard
       .locator(".post-card__content")
       .evaluate((element) => getComputedStyle(element).userSelect),
   ).not.toBe("none");
-  await feedImage.click();
+  await createdCard.getByText(content, { exact: true }).click();
   await expect(page).toHaveURL(/\/posts\/\d+$/);
-  const detailImage = page.getByAltText("피드 첨부 이미지");
-  await expect(detailImage).toHaveAttribute("draggable", "false");
   expect(consoleErrors).toEqual([]);
 });
