@@ -51,7 +51,7 @@ async function prepare(page) {
         },
         headers,
       });
-    if (url.pathname === "/api/posts/31")
+    if (url.pathname === "/api/v2/posts/31")
       return route.fulfill({
         json: {
           data: {

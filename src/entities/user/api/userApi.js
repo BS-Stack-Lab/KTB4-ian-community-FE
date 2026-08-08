@@ -29,6 +29,13 @@ export const userApi = {
       body,
     });
   },
+  updateProfileMedia: (userId, mediaId) =>
+    httpClient(`/api/v2/users/${userId}/profile-image`, {
+      method: "PATCH",
+      body: json({ mediaId }),
+    }),
+  profileMedia: (userId, options) =>
+    httpClient(`/api/v2/users/${userId}/profile-image`, options),
   updatePassword: (userId, payload) =>
     httpClient(`/api/users/${userId}/password`, {
       method: "PATCH",

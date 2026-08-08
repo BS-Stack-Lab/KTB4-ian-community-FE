@@ -71,7 +71,8 @@ async function prepare(
       });
     if (
       request.method() === "GET" &&
-      (url.pathname === "/api/posts" || url.pathname === "/api/posts/bookmarks")
+      (url.pathname === "/api/v2/posts" ||
+        url.pathname === "/api/v2/posts/bookmarks")
     )
       return route.fulfill({
         json: {
@@ -80,7 +81,8 @@ async function prepare(
               {
                 ...responsePost(),
                 bookmarked:
-                  url.pathname === "/api/posts/bookmarks" || state.bookmarked,
+                  url.pathname === "/api/v2/posts/bookmarks" ||
+                  state.bookmarked,
               },
             ],
             page: 0,
@@ -91,7 +93,7 @@ async function prepare(
         },
         headers: cors,
       });
-    if (request.method() === "GET" && url.pathname === "/api/posts/1")
+    if (request.method() === "GET" && url.pathname === "/api/v2/posts/1")
       return route.fulfill({ json: { data: responsePost() }, headers: cors });
 
     const record = {

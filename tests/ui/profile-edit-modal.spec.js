@@ -53,7 +53,7 @@ async function prepare(page, { saveFails = false, saveDelay = 0 } = {}) {
         },
         headers: cors,
       });
-    if (url.pathname === "/api/posts")
+    if (url.pathname === "/api/v2/posts")
       return route.fulfill({ json: { data: { content: [] } }, headers: cors });
     if (url.pathname === "/api/users/7/nickname") {
       nicknameCount += 1;
@@ -67,7 +67,52 @@ async function prepare(page, { saveFails = false, saveDelay = 0 } = {}) {
         });
       return route.fulfill({ status: 204, headers: cors });
     }
-    if (url.pathname === "/api/users/7/profile-image") {
+    if (url.pathname === "/api/v2/media/uploads" && request.method() === "POST")
+      return route.fulfill({
+        json: {
+          data: {
+            mediaId: "profile-media",
+            status: "PENDING_UPLOAD",
+            upload: {
+              url: "http://127.0.0.1:8080/test-profile-upload",
+              fields: { key: "private/uploads/profile-media/source" },
+            },
+          },
+        },
+        headers: cors,
+      });
+    if (url.pathname === "/test-profile-upload" && request.method() === "POST")
+      return route.fulfill({ status: 204, headers: cors });
+    if (
+      url.pathname === "/api/v2/media/profile-media/complete" &&
+      request.method() === "POST"
+    )
+      return route.fulfill({
+        json: {
+          data: {
+            mediaId: "profile-media",
+            status: "READY",
+            frame: "PROFILE",
+            mediaRevision: 1,
+            transformVersion: 1,
+            variants: [
+              {
+                type: "PROFILE_MEDIUM",
+                url: "/images/profile/changed.jpg",
+                width: 160,
+                height: 160,
+                mimeType: "image/webp",
+                fileSize: 1024,
+              },
+            ],
+          },
+        },
+        headers: cors,
+      });
+    if (
+      url.pathname === "/api/v2/users/7/profile-image" &&
+      request.method() === "PATCH"
+    ) {
       imageCount += 1;
       if (saveDelay)
         await new Promise((resolve) => setTimeout(resolve, saveDelay));
@@ -78,7 +123,25 @@ async function prepare(page, { saveFails = false, saveDelay = 0 } = {}) {
           headers: cors,
         });
       return route.fulfill({
-        json: { data: { profile_image: "/images/profile/changed.jpg" } },
+        json: {
+          data: {
+            mediaId: "profile-media",
+            status: "READY",
+            frame: "PROFILE",
+            mediaRevision: 1,
+            transformVersion: 1,
+            variants: [
+              {
+                type: "PROFILE_MEDIUM",
+                url: "/images/profile/changed.jpg",
+                width: 160,
+                height: 160,
+                mimeType: "image/webp",
+                fileSize: 1024,
+              },
+            ],
+          },
+        },
         headers: cors,
       });
     }
@@ -207,6 +270,9 @@ test("닉네임과 이미지 변경 상태 및 성공 반영", async ({ page }) 
   await dialog
     .locator('input[type="file"]')
     .setInputFiles("tests/fixtures/feed-create-reference.jpg");
+  await expect(
+    dialog.getByRole("button", { name: "이미지 업로드 취소" }),
+  ).toBeVisible();
   await expect(save).toBeEnabled();
   await page.screenshot({
     path: "tests/visual/actual/profile-edit-modal-preview.png",
@@ -229,6 +295,9 @@ test("Pending 중 중복 요청을 막고 실패 시 입력과 Preview를 유지
   await dialog
     .locator('input[type="file"]')
     .setInputFiles("tests/fixtures/feed-create-reference.jpg");
+  await expect(
+    dialog.getByRole("button", { name: "이미지 업로드 취소" }),
+  ).toBeVisible();
   const save = dialog.getByRole("button", { name: "저장하기" });
   await save.evaluate((button) => {
     button.click();

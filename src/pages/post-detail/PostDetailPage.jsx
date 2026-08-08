@@ -139,6 +139,7 @@ export function PostDetailPage({
         onEdit={isOwner ? () => setEditingPost(post) : undefined}
         onDelete={isOwner ? () => setDeleteOpen(true) : undefined}
         ownerOptionsInFooter={isOwner}
+        imagePriority
       />
       <CommentForm postId={postId} onCreated={load} />
       <section className="comments">

@@ -35,7 +35,7 @@ async function prepare(page, { fails = false, delay = 0 } = {}) {
         },
         headers: cors,
       });
-    if (url.pathname === "/api/posts")
+    if (url.pathname === "/api/v2/posts")
       return route.fulfill({ json: { data: { content: [] } }, headers: cors });
     if (url.pathname === "/api/users/7/password") {
       requestCount += 1;

@@ -72,6 +72,34 @@ describe("Feed Card", () => {
     expect(container.querySelector(".post-card__image")).toBeNull();
   });
 
+  it("V2 variant는 srcset을 사용하고 LCP 후보만 eager/high priority로 로드한다", async () => {
+    await renderCard(
+      {
+        media: [
+          {
+            mediaId: "media-1",
+            status: "READY",
+            variants: [
+              { url: "https://cdn/448.webp", width: 448, height: 288 },
+              { url: "https://cdn/896.webp", width: 896, height: 576 },
+            ],
+          },
+        ],
+      },
+      { imagePriority: true },
+    );
+    const image = container.querySelector(".post-card__image");
+    expect(image.getAttribute("srcset")).toContain("448w");
+    expect(image.getAttribute("sizes")).toBe("(max-width: 448px) 100vw, 448px");
+    expect(image.getAttribute("loading")).toBe("eager");
+    expect(image.getAttribute("fetchpriority")).toBe("high");
+
+    await renderCard({ post_id: 8 }, { imagePriority: false });
+    expect(
+      container.querySelector(".post-card__image").getAttribute("loading"),
+    ).toBe("lazy");
+  });
+
   it("Feed 소유자 Action은 하단 북마크 위치의 Option Menu로 제공한다", async () => {
     await renderCard(
       {},

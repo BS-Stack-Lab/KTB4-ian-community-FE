@@ -96,6 +96,7 @@ export function CommunityLnb({
           <div className="lnb-user__identity">
             <UserAvatar
               profileImage={user.profileImage}
+              profileMedia={user.profileMedia}
               nickname={user.nickname}
             />
             <strong title={user.nickname}>{user.nickname}</strong>

@@ -90,7 +90,7 @@ async function mockSignupApi(
         },
         headers: cors,
       });
-    if (url.pathname === "/api/posts")
+    if (url.pathname === "/api/v2/posts")
       return route.fulfill({
         status: 200,
         json: { data: { content: [] } },

@@ -53,6 +53,54 @@ async function prepare(
     if (url.pathname === "/api/users/me")
       return route.fulfill({ json: { data: user }, headers: cors });
     if (
+      url.pathname === "/api/v2/media/uploads" &&
+      route.request().method() === "POST"
+    )
+      return route.fulfill({
+        json: {
+          data: {
+            mediaId: "community-media",
+            status: "PENDING_UPLOAD",
+            upload: {
+              url: "http://127.0.0.1:8080/test-media-upload",
+              fields: { key: "private/uploads/community-media/source" },
+            },
+          },
+        },
+        headers: cors,
+      });
+    if (
+      url.pathname === "/test-media-upload" &&
+      route.request().method() === "POST"
+    )
+      return route.fulfill({ status: 204, headers: cors });
+    if (
+      url.pathname === "/api/v2/media/community-media/complete" &&
+      route.request().method() === "POST"
+    )
+      return route.fulfill({
+        json: {
+          data: {
+            mediaId: "community-media",
+            status: "READY",
+            frame: "POST_LANDSCAPE",
+            mediaRevision: 1,
+            transformVersion: 1,
+            variants: [
+              {
+                type: "POST_LANDSCAPE_1X",
+                url: "/images/community-media.jpg",
+                width: 448,
+                height: 288,
+                mimeType: "image/webp",
+                fileSize: 1024,
+              },
+            ],
+          },
+        },
+        headers: cors,
+      });
+    if (
       url.pathname === "/api/posts/1/bookmarks" &&
       route.request().method() === "POST"
     ) {
@@ -70,7 +118,7 @@ async function prepare(
       return route.fulfill({ status: 204, headers: cors });
     }
     if (
-      url.pathname === "/api/posts/bookmarks" &&
+      url.pathname === "/api/v2/posts/bookmarks" &&
       route.request().method() === "GET"
     )
       return route.fulfill({
@@ -82,10 +130,10 @@ async function prepare(
         },
         headers: cors,
       });
-    if (url.pathname === "/api/posts" && route.request().method() === "GET")
+    if (url.pathname === "/api/v2/posts" && route.request().method() === "GET")
       if (feedDelay)
         await new Promise((resolve) => setTimeout(resolve, feedDelay));
-    if (url.pathname === "/api/posts" && route.request().method() === "GET")
+    if (url.pathname === "/api/v2/posts" && route.request().method() === "GET")
       return route.fulfill({
         json: {
           data: {
@@ -95,7 +143,10 @@ async function prepare(
         },
         headers: cors,
       });
-    if (url.pathname === "/api/posts/1" && route.request().method() === "GET")
+    if (
+      url.pathname === "/api/v2/posts/1" &&
+      route.request().method() === "GET"
+    )
       return route.fulfill({
         json: {
           data:
@@ -108,14 +159,35 @@ async function prepare(
         },
         headers: cors,
       });
-    if (url.pathname === "/api/posts/me" && createFails)
+    if (
+      url.pathname === "/api/v2/posts/me" &&
+      route.request().method() === "POST" &&
+      createFails
+    )
       return route.fulfill({
         status: 500,
         json: { code: "INTERNAL_SERVER_ERROR", message: "internal detail" },
         headers: cors,
       });
+    if (url.pathname === "/images/community-media.jpg")
+      return route.fulfill({
+        status: 200,
+        contentType: "image/jpeg",
+        path: "tests/fixtures/feed-create-reference.jpg",
+        headers: cors,
+      });
     return route.fulfill({ status: 204, headers: cors });
   });
+}
+
+async function chooseAndAttachPostImage(page) {
+  await page
+    .locator('.feed-create-modal input[type="file"]')
+    .setInputFiles("tests/fixtures/feed-create-reference.jpg");
+  const imageEditor = page.getByRole("dialog", { name: "이미지 편집" });
+  await expect(imageEditor).toBeVisible();
+  await imageEditor.getByRole("button", { name: "이미지 첨부" }).click();
+  await expect(page.getByRole("dialog", { name: "피드 생성" })).toBeVisible();
 }
 
 test("/feed 직접 접근과 현재 사용자 34px 프로필", async ({ page }) => {
@@ -145,11 +217,7 @@ test("이미지만 선택하면 비활성이고 Preview는 448x288", async ({ pa
   await prepare(page);
   await page.goto("/feed");
   await page.getByRole("button", { name: "피드 게시하기" }).click();
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "photo.png",
-    mimeType: "image/png",
-    buffer: Buffer.from("image"),
-  });
+  await chooseAndAttachPostImage(page);
   await expect(
     page.getByRole("button", { name: "피드 게시", exact: true }),
   ).toBeDisabled();
@@ -169,11 +237,7 @@ test("생성 실패 시 본문과 Preview를 유지", async ({ page }) => {
   await page.goto("/feed");
   await page.getByRole("button", { name: "피드 게시하기" }).click();
   await page.getByLabel("피드 본문").fill("재시도 본문");
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "photo.png",
-    mimeType: "image/png",
-    buffer: Buffer.from("image"),
-  });
+  await chooseAndAttachPostImage(page);
   await page.getByRole("button", { name: "피드 게시", exact: true }).click();
   await expect(page.getByText("서버 오류가 발생했습니다.")).toBeVisible();
   await expect(page.getByLabel("피드 본문")).toHaveValue("재시도 본문");

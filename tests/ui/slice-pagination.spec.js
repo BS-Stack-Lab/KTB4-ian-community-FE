@@ -75,10 +75,10 @@ async function prepare(page, { empty = false } = {}) {
       });
 
     const pageNumber = Number(url.searchParams.get("page") || 0);
-    const isBookmarks = url.pathname === "/api/posts/bookmarks";
+    const isBookmarks = url.pathname === "/api/v2/posts/bookmarks";
     if (
       request.method() === "GET" &&
-      (url.pathname === "/api/posts" || isBookmarks)
+      (url.pathname === "/api/v2/posts" || isBookmarks)
     ) {
       if (isBookmarks) {
         state.bookmarkRequests += 1;

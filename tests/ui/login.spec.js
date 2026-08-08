@@ -59,7 +59,7 @@ async function prepare(page, { loginFails = false, delay = 0 } = {}) {
         json: { data: { user_id: 7, nickname: "pulse" } },
         headers: cors,
       });
-    if (path === "/api/posts")
+    if (path === "/api/v2/posts")
       return route.fulfill({ json: { data: { content: [] } }, headers: cors });
     if (path.endsWith("/images/profile-default.svg"))
       return route.fulfill({

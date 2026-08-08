@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { userApi } from "../../src/entities/user/api/userApi.js";
 import { EditProfileModal } from "../../src/features/user/profile/EditProfileModal.jsx";
+import { mediaApi } from "../../src/entities/media/api/mediaApi.js";
 
 const user = {
   userId: 7,
@@ -20,6 +21,16 @@ describe("프로필 편집 Modal", () => {
     root = createRoot(document.querySelector("#root"));
     URL.createObjectURL = vi.fn(() => "blob:profile-preview");
     URL.revokeObjectURL = vi.fn();
+    vi.spyOn(mediaApi, "initiate").mockResolvedValue({
+      mediaId: "profile-media-1",
+      upload: { url: "https://upload.example", fields: {} },
+    });
+    vi.spyOn(mediaApi, "uploadToPresignedPost").mockResolvedValue();
+    vi.spyOn(mediaApi, "complete").mockResolvedValue({
+      mediaId: "profile-media-1",
+      status: "READY",
+      variants: [],
+    });
   });
 
   afterEach(async () => {
@@ -77,8 +88,17 @@ describe("프로필 편집 Modal", () => {
   });
 
   it("이미지 Preview를 표시하고 성공 후 사용자와 Object URL을 갱신한다", async () => {
-    vi.spyOn(userApi, "updateProfileImage").mockResolvedValue({
-      profile_image: "/images/profile/changed.png",
+    vi.spyOn(userApi, "updateProfileMedia").mockResolvedValue({
+      mediaId: "profile-media-1",
+      status: "READY",
+      variants: [
+        {
+          type: "PROFILE_MEDIUM",
+          url: "https://cdn.example/profile-160.webp",
+          width: 160,
+          height: 160,
+        },
+      ],
     });
     const { onClose, onUpdated } = await renderModal();
     const file = new File(["image"], "profile.png", { type: "image/png" });
@@ -93,18 +113,23 @@ describe("프로필 편집 Modal", () => {
     await act(async () =>
       fireEvent.click(document.querySelector(".profile-editor__fields button")),
     );
-    expect(userApi.updateProfileImage).toHaveBeenCalledWith(7, file);
-    expect(onUpdated).toHaveBeenCalledWith({
-      nickname: "기존닉",
-      profileImage: "/images/profile/changed.png",
-    });
+    expect(userApi.updateProfileMedia).toHaveBeenCalledWith(
+      7,
+      "profile-media-1",
+    );
+    expect(onUpdated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nickname: "기존닉",
+        profileImage: "https://cdn.example/profile-160.webp",
+      }),
+    );
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:profile-preview");
   });
 
   it("Pending 중 중복 요청을 막고 실패하면 입력과 Preview를 유지한다", async () => {
     let reject;
-    vi.spyOn(userApi, "updateProfileImage").mockReturnValue(
+    vi.spyOn(userApi, "updateProfileMedia").mockReturnValue(
       new Promise((resolve, rejectRequest) => {
         reject = rejectRequest;
       }),
@@ -122,7 +147,9 @@ describe("프로필 편집 Modal", () => {
       fireEvent.click(save);
       fireEvent.click(save);
     });
-    expect(userApi.updateProfileImage).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() =>
+      expect(userApi.updateProfileMedia).toHaveBeenCalledTimes(1),
+    );
     await act(async () => reject(new Error("프로필 수정 실패")));
     expect(document.body.textContent).toContain("프로필 수정 실패");
     expect(document.querySelector(".user-avatar").src).toBe(

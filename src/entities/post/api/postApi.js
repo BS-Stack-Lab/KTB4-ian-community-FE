@@ -2,16 +2,21 @@ import { httpClient } from "../../../shared/api/httpClient.js";
 
 export const postApi = {
   list: ({ page = 0, size = 10, ...options } = {}) =>
-    httpClient(`/api/posts?page=${page}&size=${size}`, options),
+    httpClient(`/api/v2/posts?page=${page}&size=${size}`, options),
   bookmarks: ({ page = 0, size = 10, ...options } = {}) =>
-    httpClient(`/api/posts/bookmarks?page=${page}&size=${size}`, options),
-  detail: (postId, options) => httpClient(`/api/posts/${postId}`, options),
+    httpClient(`/api/v2/posts/bookmarks?page=${page}&size=${size}`, options),
+  detail: (postId, options) => httpClient(`/api/v2/posts/${postId}`, options),
   create: ({ content, image }) => {
     const body = new FormData();
     body.append("content", content);
     if (image) body.append("image", image);
     return httpClient("/api/posts/me", { method: "POST", body });
   },
+  createV2: ({ content, mediaIds = [] }) =>
+    httpClient("/api/v2/posts/me", {
+      method: "POST",
+      body: JSON.stringify({ content, mediaIds }),
+    }),
   update: (postId, { content, imageUrl }) =>
     httpClient(`/api/posts/${postId}`, {
       method: "PATCH",
@@ -20,6 +25,11 @@ export const postApi = {
         content,
         imageUrl,
       }),
+    }),
+  updateV2: (postId, { content, mediaIds = [], revisionActivations = [] }) =>
+    httpClient(`/api/v2/posts/${postId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ content, mediaIds, revisionActivations }),
     }),
   remove: (postId) => httpClient(`/api/posts/${postId}`, { method: "DELETE" }),
   like: (postId) =>

@@ -18,10 +18,21 @@ export function AuthProvider({ children }) {
       return;
     }
     const controller = new AbortController();
-    userApi
-      .me({ signal: controller.signal })
-      .then((raw) => {
-        const next = normalizeUser({ ...cached, ...raw, userId });
+    Promise.all([
+      userApi.me({ signal: controller.signal }),
+      userApi
+        .profileMedia(userId, { signal: controller.signal })
+        .catch((error) =>
+          error.name === "AbortError" ? Promise.reject(error) : null,
+        ),
+    ])
+      .then(([raw, profile]) => {
+        const next = normalizeUser({
+          ...cached,
+          ...raw,
+          ...(profile || {}),
+          userId,
+        });
         setUser(next);
         setStatus("authenticated");
       })

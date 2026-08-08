@@ -31,7 +31,7 @@ async function prepare(page, { fails = false, delay = 0 } = {}) {
         json: { data: { user_id: 7, nickname: "dlkfjs" } },
         headers: cors,
       });
-    if (url.pathname === "/api/posts")
+    if (url.pathname === "/api/v2/posts")
       return route.fulfill({ json: { data: { content: [] } }, headers: cors });
     if (url.pathname === "/api/users/logout") {
       logoutCount += 1;

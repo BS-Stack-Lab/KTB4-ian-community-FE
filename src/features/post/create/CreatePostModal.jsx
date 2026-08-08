@@ -1,51 +1,195 @@
 import { useEffect, useRef, useState } from "react";
+import { mediaApi } from "../../../entities/media/api/mediaApi.js";
+import { preferredVariant } from "../../../entities/media/model/mediaModel.js";
 import { postApi } from "../../../entities/post/api/postApi.js";
 import { UserAvatar } from "../../../entities/user/ui/UserAvatar.jsx";
-import { Modal } from "../../../shared/ui/Modal.jsx";
 import {
   cameraIcon,
   directionTopIcon,
   feedPreviewCloseLeftIcon,
   feedPreviewCloseRightIcon,
 } from "../../../shared/assets/index.js";
+import { apiAssetUrl } from "../../../shared/config/env.js";
+import { Modal } from "../../../shared/ui/Modal.jsx";
+import {
+  createOrientedPreview,
+  defaultNormalizedCrop,
+  frameAspect,
+  initialPostFrame,
+} from "../../media/lib/imagePreview.js";
+import { uploadMedia } from "../../media/model/mediaOrchestrator.js";
+import { FeedImageEditModal } from "../../media/ui/FeedImageEditModal.jsx";
+
+function previewUrl(attachment) {
+  return apiAssetUrl(
+    preferredVariant(attachment?.media, 448)?.url || attachment?.preview?.url,
+    null,
+  );
+}
 
 export function CreatePostModal({ open, onClose, user, onCreated }) {
   const [content, setContent] = useState("");
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const [attachment, setAttachment] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorPending, setEditorPending] = useState(false);
+  const [editorError, setEditorError] = useState("");
+  const [failedMediaId, setFailedMediaId] = useState(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef(null);
   const textareaRef = useRef(null);
   const pendingRef = useRef(false);
-  const valid = content.trim().length > 0 && !pending;
-
-  useEffect(
-    () => () => {
-      if (preview) URL.revokeObjectURL(preview);
-    },
-    [preview],
-  );
-
-  function clearImage() {
-    setPreview(null);
-    setFile(null);
-    if (inputRef.current) inputRef.current.value = "";
-  }
-
-  function choose(event) {
-    const next = event.target.files[0] || null;
-    setFile(next);
-    setPreview(next ? URL.createObjectURL(next) : null);
-  }
+  const editorAbortRef = useRef(null);
+  const valid = content.trim().length > 0 && !pending && !editorPending;
 
   useEffect(() => {
-    if (!open || !textareaRef.current) return;
+    if (!open) return;
+    setError("");
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || editorOpen || !textareaRef.current) return;
     const textarea = textareaRef.current;
     textarea.style.height = "auto";
     const contentHeight = textarea.scrollHeight - 3;
     textarea.style.height = `${Math.min(Math.max(contentHeight, 36), 324)}px`;
-  }, [open, content]);
+  }, [open, editorOpen, content]);
+
+  function discardMedia(mediaId) {
+    if (mediaId) mediaApi.cancel(mediaId).catch(() => {});
+  }
+
+  function discardAttachment(value, { revoke = true } = {}) {
+    discardMedia(value?.media?.mediaId);
+    if (revoke && value?.preview?.url) URL.revokeObjectURL(value.preview.url);
+  }
+
+  async function openFileEditor(file) {
+    if (file.size > 10 * 1024 * 1024) {
+      setError("게시글 이미지는 10MiB 이하만 업로드할 수 있습니다.");
+      return;
+    }
+    try {
+      const preview = await createOrientedPreview(file);
+      const frame = initialPostFrame(preview.width, preview.height);
+      setDraft({
+        kind: "file",
+        file,
+        preview,
+        frame,
+        initialEdit: {
+          purpose: "POST",
+          frame,
+          rotation: 0,
+          crop: defaultNormalizedCrop(
+            preview.width,
+            preview.height,
+            frameAspect(frame),
+          ),
+          zoom: 1,
+        },
+      });
+      setEditorError("");
+      setError("");
+      setEditorOpen(true);
+    } catch (cause) {
+      setError(cause.message || "이미지 미리보기를 만들 수 없습니다.");
+    }
+  }
+
+  function choose(event) {
+    const file = event.target.files[0] || null;
+    event.target.value = "";
+    if (file) openFileEditor(file);
+  }
+
+  function editAttachedImage() {
+    if (!attachment) return;
+    setDraft({
+      kind: "file",
+      file: attachment.file,
+      preview: attachment.preview,
+      frame: attachment.edit.frame,
+      initialEdit: attachment.edit,
+      reusingAttachment: true,
+    });
+    setEditorError("");
+    setEditorOpen(true);
+  }
+
+  function cancelImageEditor() {
+    editorAbortRef.current?.abort();
+    discardMedia(failedMediaId);
+    setFailedMediaId(null);
+    if (draft?.preview?.url && !draft.reusingAttachment) {
+      URL.revokeObjectURL(draft.preview.url);
+    }
+    setDraft(null);
+    setEditorPending(false);
+    setEditorError("");
+    setEditorOpen(false);
+  }
+
+  async function attachImage(edit) {
+    if (!draft?.file || editorPending) return;
+    editorAbortRef.current = new AbortController();
+    setEditorPending(true);
+    setEditorError("");
+    discardMedia(failedMediaId);
+    setFailedMediaId(null);
+    try {
+      const media = await uploadMedia(draft.file, edit, {
+        signal: editorAbortRef.current.signal,
+      });
+      const previous = attachment;
+      const next = {
+        file: draft.file,
+        preview: draft.preview,
+        edit,
+        media,
+      };
+      setAttachment(next);
+      if (previous && previous !== next) {
+        discardAttachment(previous, {
+          revoke: previous.preview?.url !== draft.preview?.url,
+        });
+      }
+      setDraft(null);
+      setEditorOpen(false);
+    } catch (cause) {
+      if (cause?.name !== "AbortError") {
+        setFailedMediaId(cause.mediaId || null);
+        setEditorError(cause.message || "이미지를 처리할 수 없습니다.");
+      }
+    } finally {
+      editorAbortRef.current = null;
+      setEditorPending(false);
+    }
+  }
+
+  function removeImage() {
+    discardAttachment(attachment);
+    setAttachment(null);
+  }
+
+  function cancelAndClose() {
+    editorAbortRef.current?.abort();
+    discardMedia(failedMediaId);
+    discardAttachment(attachment);
+    if (
+      draft?.preview?.url &&
+      draft.preview?.url !== attachment?.preview?.url
+    ) {
+      URL.revokeObjectURL(draft.preview.url);
+    }
+    setContent("");
+    setAttachment(null);
+    setDraft(null);
+    setEditorOpen(false);
+    setError("");
+    onClose();
+  }
 
   async function submit() {
     if (!valid || pendingRef.current) return;
@@ -53,11 +197,12 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
     setPending(true);
     setError("");
     try {
-      await postApi.create({
+      await postApi.createV2({
         content: content.trim(),
-        image: file,
+        mediaIds: attachment?.media ? [attachment.media.mediaId] : [],
       });
-      clearImage();
+      if (attachment?.preview?.url) URL.revokeObjectURL(attachment.preview.url);
+      setAttachment(null);
       setContent("");
       await onCreated();
       onClose();
@@ -70,80 +215,108 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
   }
 
   return (
-    <Modal
-      open={open}
-      title="피드 생성"
-      onClose={pending ? undefined : onClose}
-      className="feed-create-modal"
-    >
-      <header className="modal-header">
-        <strong>피드 생성</strong>
-        <button type="button" onClick={onClose} disabled={pending}>
-          취소
-        </button>
-      </header>
-      <section className="feed-editor">
-        <div className="feed-editor__media">
-          <div className="identity">
-            <UserAvatar
-              profileImage={user.profileImage}
-              nickname={user.nickname}
-            />
-            <strong>{user.nickname}</strong>
-          </div>
-          {preview && (
-            <div className="feed-editor__preview">
-              <img
-                src={preview}
-                alt="선택한 이미지 미리보기"
-                draggable={false}
-                onDragStart={(event) => event.preventDefault()}
+    <>
+      <Modal
+        open={open && !editorOpen}
+        title="피드 생성"
+        onClose={pending ? undefined : cancelAndClose}
+        className="feed-create-modal"
+      >
+        <header className="modal-header">
+          <strong>피드 생성</strong>
+          <button type="button" onClick={cancelAndClose} disabled={pending}>
+            취소
+          </button>
+        </header>
+        <section className="feed-editor">
+          <div className="feed-editor__media">
+            <div className="identity">
+              <UserAvatar
+                profileImage={user.profileImage}
+                profileMedia={user.profileMedia}
+                nickname={user.nickname}
               />
-              <button
-                type="button"
-                aria-label="선택한 이미지 제거"
-                onClick={clearImage}
-                disabled={pending}
-              >
-                <span className="feed-editor__remove-icon" aria-hidden="true">
-                  <img src={feedPreviewCloseLeftIcon} alt="" />
-                  <img src={feedPreviewCloseRightIcon} alt="" />
-                </span>
-              </button>
+              <strong>{user.nickname}</strong>
             </div>
-          )}
-        </div>
-        <textarea
-          ref={textareaRef}
-          aria-label="피드 본문"
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-          placeholder="무슨 생각을 하고 계신가요?"
-          disabled={pending}
-        />
-        {error && <p className="error">{error}</p>}
-      </section>
-      <footer className="editor-footer">
-        <label className="camera">
-          <img src={cameraIcon} alt="이미지 선택" />
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={choose}
+            {attachment && (
+              <div className="feed-editor__preview">
+                <button
+                  className="feed-editor__preview-open"
+                  type="button"
+                  aria-label="첨부 이미지 편집"
+                  onClick={editAttachedImage}
+                  disabled={pending}
+                >
+                  <img
+                    src={previewUrl(attachment)}
+                    alt="선택한 이미지 미리보기"
+                    draggable={false}
+                    onDragStart={(event) => event.preventDefault()}
+                  />
+                </button>
+                <button
+                  className="feed-editor__remove"
+                  type="button"
+                  aria-label="선택한 이미지 제거"
+                  onClick={removeImage}
+                  disabled={pending}
+                >
+                  <span className="feed-editor__remove-icon" aria-hidden="true">
+                    <img src={feedPreviewCloseLeftIcon} alt="" />
+                    <img src={feedPreviewCloseRightIcon} alt="" />
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
+          <textarea
+            ref={textareaRef}
+            aria-label="피드 본문"
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            placeholder="무슨 생각을 하고 계신가요?"
             disabled={pending}
           />
-        </label>
-        <button
-          className="submit-icon"
-          type="button"
-          aria-label="피드 게시"
-          disabled={!valid}
-          onClick={submit}
-        >
-          <img src={directionTopIcon} alt="" />
-        </button>
-      </footer>
-    </Modal>
+          {error && (
+            <div className="error" role="alert">
+              <p>{error}</p>
+            </div>
+          )}
+        </section>
+        <footer className="editor-footer">
+          <label className="camera">
+            <img src={cameraIcon} alt="이미지 선택" />
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={choose}
+              disabled={pending}
+            />
+          </label>
+          <button
+            className="submit-icon"
+            type="button"
+            aria-label="피드 게시"
+            disabled={!valid}
+            onClick={submit}
+          >
+            <img src={directionTopIcon} alt="" />
+          </button>
+        </footer>
+      </Modal>
+      <FeedImageEditModal
+        open={open && editorOpen}
+        source={draft?.preview?.url}
+        width={draft?.preview?.width}
+        height={draft?.preview?.height}
+        frame={draft?.frame}
+        initialEdit={draft?.initialEdit}
+        pending={editorPending}
+        error={editorError}
+        onCancel={cancelImageEditor}
+        onAttach={attachImage}
+      />
+    </>
   );
 }

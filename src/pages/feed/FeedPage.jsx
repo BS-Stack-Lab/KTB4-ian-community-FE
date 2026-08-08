@@ -226,6 +226,7 @@ export function FeedPage({
             <span>
               <UserAvatar
                 profileImage={user.profileImage}
+                profileMedia={user.profileMedia}
                 nickname={user.nickname}
               />
               <span className="create-trigger__placeholder">
@@ -272,6 +273,7 @@ export function FeedPage({
                   onEdit={isOwner ? () => setEditingPost(post) : undefined}
                   onDelete={isOwner ? () => setDeletingPost(post) : undefined}
                   ownerOptionsInFooter={isOwner}
+                  imagePriority={index === 0}
                 />
               );
             })}
