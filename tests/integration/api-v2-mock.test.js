@@ -14,10 +14,10 @@ const readyMedia = {
   transformVersion: 1,
   variants: [
     {
-      type: "POST_LANDSCAPE_1X",
+      type: "POST_LANDSCAPE_3X",
       url: "https://cdn.test/media-v2.r2.t1.webp",
-      width: 448,
-      height: 288,
+      width: 1344,
+      height: 864,
       mimeType: "image/webp",
       fileSize: 1024,
     },

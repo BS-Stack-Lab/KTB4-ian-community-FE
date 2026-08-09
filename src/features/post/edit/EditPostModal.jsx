@@ -43,7 +43,10 @@ function attachmentUrl(attachment) {
     );
   }
   if (attachment.kind === "revision") {
-    return apiAssetUrl(preferredVariant(attachment.response, 448)?.url, null);
+    return apiAssetUrl(
+      preferredVariant(attachment.response, 448)?.url || attachment.previewUrl,
+      null,
+    );
   }
   if (attachment.kind === "original-v2") {
     return apiAssetUrl(preferredVariant(attachment.media, 448)?.url, null);
@@ -147,10 +150,12 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
 
   function discardPrepared(value, { revoke = true } = {}) {
     if (value?.kind === "new") {
-      mediaApi.cancel(value.media.mediaId).catch(() => {});
+      if (value.media?.mediaId) {
+        mediaApi.cancel(value.media.mediaId).catch(() => {});
+      }
       if (revoke && value.preview?.url) URL.revokeObjectURL(value.preview.url);
     }
-    if (value?.kind === "revision") {
+    if (value?.kind === "revision" && value.response?.revision) {
       mediaApi
         .cancelRevision(value.mediaId, value.response.revision)
         .catch(() => {});
@@ -198,7 +203,7 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
   }
 
   async function editAttachedImage() {
-    if (!attachment || sourcePending) return;
+    if (!attachment || sourcePending || editorPending) return;
     setSourcePending(true);
     setError("");
     editorAbortRef.current = new AbortController();
@@ -277,63 +282,128 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
     if (!draft || editorPending) return;
     discardFailed();
     setFailedDraft(null);
-    editorAbortRef.current = new AbortController();
+    const controller = new AbortController();
+    const processingDraft = draft;
+    const previous = attachment;
+    const optimistic =
+      processingDraft.kind === "revision"
+        ? {
+            kind: "revision",
+            mediaId: processingDraft.mediaId,
+            response: null,
+            edit,
+            previewUrl: attachmentUrl(previous),
+            processing: true,
+            previous,
+          }
+        : {
+            kind: "new",
+            file: processingDraft.file,
+            preview: processingDraft.preview,
+            media: null,
+            edit,
+            processing: true,
+            previous,
+          };
+    editorAbortRef.current = controller;
     setEditorPending(true);
     setEditorError("");
+    setAttachment(optimistic);
+    setEditorOpen(false);
     try {
       let next;
-      if (draft.kind === "revision") {
-        const response = await prepareRevision(draft.mediaId, edit, {
-          signal: editorAbortRef.current.signal,
+      if (processingDraft.kind === "revision") {
+        const response = await prepareRevision(processingDraft.mediaId, edit, {
+          signal: controller.signal,
         });
+        if (controller.signal.aborted) {
+          mediaApi
+            .cancelRevision(processingDraft.mediaId, response.revision)
+            .catch(() => {});
+          return;
+        }
         next = {
           kind: "revision",
-          mediaId: draft.mediaId,
+          mediaId: processingDraft.mediaId,
           response,
           edit,
         };
       } else {
-        const media = await uploadMedia(draft.file, edit, {
-          signal: editorAbortRef.current.signal,
+        const media = await uploadMedia(processingDraft.file, edit, {
+          signal: controller.signal,
         });
+        if (controller.signal.aborted) {
+          mediaApi.cancel(media.mediaId).catch(() => {});
+          return;
+        }
         next = {
           kind: "new",
-          file: draft.file,
-          preview: draft.preview,
+          file: processingDraft.file,
+          preview: processingDraft.preview,
           media,
           edit,
         };
       }
-      const previous = attachment;
       setAttachment(next);
       discardPrepared(previous, {
         revoke: previous?.preview?.url !== next?.preview?.url,
       });
       setDraft(null);
-      setEditorOpen(false);
     } catch (cause) {
-      if (cause?.name !== "AbortError") {
+      if (cause?.name === "AbortError" || controller.signal.aborted) {
+        discardFailed({
+          mediaId: cause.mediaId,
+          revision: cause.revision,
+        });
+      } else {
+        setAttachment(previous);
         setFailedDraft({
           mediaId: cause.mediaId,
           revision: cause.revision,
         });
         setEditorError(cause.message || "이미지를 처리할 수 없습니다.");
+        setEditorOpen(true);
       }
     } finally {
-      editorAbortRef.current = null;
-      setEditorPending(false);
+      if (editorAbortRef.current === controller) {
+        editorAbortRef.current = null;
+        setEditorPending(false);
+      }
     }
   }
 
   function removeImage() {
+    editorAbortRef.current?.abort();
+    editorAbortRef.current = null;
+    setEditorPending(false);
+    if (attachment?.processing && attachment.previous) {
+      discardPrepared(attachment.previous, {
+        revoke: attachment.previous.preview?.url !== attachment.preview?.url,
+      });
+    }
     discardPrepared(attachment);
+    if (
+      draft?.kind === "file" &&
+      draft.preview?.url !== attachment?.preview?.url
+    ) {
+      URL.revokeObjectURL(draft.preview.url);
+    }
+    setDraft(null);
     setAttachment(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
   function cancelAndClose() {
     editorAbortRef.current?.abort();
+    editorAbortRef.current = null;
+    setEditorPending(false);
     discardFailed();
+    setFailedDraft(null);
+    if (attachment?.processing && attachment.previous) {
+      discardPrepared(attachment.previous, {
+        revoke: attachment.previous.preview?.url !== attachment.preview?.url,
+      });
+    }
     discardPrepared(attachment);
     if (
       draft?.kind === "file" &&
@@ -344,6 +414,7 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
     setDraft(null);
     setAttachment(null);
     setEditorOpen(false);
+    setEditorError("");
     onClose();
   }
 
@@ -438,7 +509,7 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
                   type="button"
                   aria-label="피드 이미지 편집"
                   onClick={editAttachedImage}
-                  disabled={pending || sourcePending}
+                  disabled={pending || sourcePending || editorPending}
                 >
                   <img
                     src={displayedImage}
@@ -459,6 +530,11 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
                     <img src={feedPreviewCloseRightIcon} alt="" />
                   </span>
                 </button>
+                {attachment.processing && (
+                  <span className="feed-editor__preview-status" role="status">
+                    이미지 처리 중
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -483,7 +559,7 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
               type="file"
               accept="image/png,image/jpeg,image/webp"
               onChange={choose}
-              disabled={pending || sourcePending}
+              disabled={pending || sourcePending || editorPending}
             />
           </label>
           <button

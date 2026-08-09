@@ -1081,6 +1081,20 @@
   outline: 3px solid #5b5ceb;
   outline-offset: 2px;
 }
+.feed-editor__preview-status {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: white;
+  background: rgb(23 23 23 / 48%);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  pointer-events: none;
+}
 .feed-editor__remove-icon {
   position: relative;
   display: block;
