@@ -14,12 +14,6 @@ const media = {
       height: 288,
     },
     {
-      type: "POST_LANDSCAPE_2X",
-      url: "https://cdn/896.webp",
-      width: 896,
-      height: 576,
-    },
-    {
       type: "POST_LANDSCAPE_3X",
       url: "https://cdn/1344.webp",
       width: 1344,
@@ -42,7 +36,7 @@ describe("Media V2 정규화와 responsive source", () => {
     const post = normalizePost({ media: [media] });
     const responsive = responsiveImage(post.media[0], 448);
     expect(responsive.srcSet).toBe(
-      "https://cdn/448.webp 448w, https://cdn/896.webp 896w, https://cdn/1344.webp 1344w",
+      "https://cdn/448.webp 448w, https://cdn/1344.webp 1344w",
     );
   });
 

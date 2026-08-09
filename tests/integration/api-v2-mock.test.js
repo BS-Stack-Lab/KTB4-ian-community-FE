@@ -14,6 +14,14 @@ const readyMedia = {
   transformVersion: 1,
   variants: [
     {
+      type: "POST_LANDSCAPE_1X",
+      url: "https://cdn.test/media-v2.r2.t1.448.webp",
+      width: 448,
+      height: 288,
+      mimeType: "image/webp",
+      fileSize: 512,
+    },
+    {
       type: "POST_LANDSCAPE_3X",
       url: "https://cdn.test/media-v2.r2.t1.webp",
       width: 1344,
@@ -80,13 +88,16 @@ describe("V2 mock API 계약", () => {
     ]);
     expect(normalizePost(list.content[0])).toMatchObject({
       postId: 31,
-      imageUrl: "https://cdn.test/media-v2.r2.t1.webp",
+      imageUrl: "https://cdn.test/media-v2.r2.t1.448.webp",
       media: [
         expect.objectContaining({ mediaId: "media-v2", mediaRevision: 2 }),
       ],
     });
     expect(normalizePost(bookmarks.content[0]).bookmarked).toBe(true);
     expect(normalizePost(detail).content).toBe("V2 피드 본문");
+    expect(
+      normalizeMedia(readyMedia).variants.map(({ width }) => width),
+    ).toEqual([448, 1344]);
   });
 
   it("게시글 생성·수정에 mediaIds와 revisionActivations를 전송한다", async () => {
