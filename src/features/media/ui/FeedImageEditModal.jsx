@@ -160,7 +160,7 @@ export function FeedImageEditModal({
                 setCropperZoom(value);
                 setZoom(clampZoom(value / minimumCropperZoom));
               }}
-              onCropComplete={(_, percentages) =>
+              onCropComplete={(percentages) =>
                 setCropArea(normalizedCrop(percentages))
               }
               minZoom={minimumCropperZoom}
