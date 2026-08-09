@@ -96,21 +96,70 @@ for backend_path in api uploads images; do
   }
 done
 
-docker exec "${container_name}" wget --server-response --spider \
-  http://127.0.0.1:8080/dist/app.js 2>&1 \
-  | tr -d '\r' \
-  | grep -Eiq '^[[:space:]]*Cache-Control: .*immutable' || {
-  echo "FAIL: static asset cache header is missing" >&2
+index_html="$(docker exec "${container_name}" wget --quiet --output-document=- \
+  http://127.0.0.1:8080/index.html)"
+hashed_assets=()
+while IFS= read -r asset; do
+  hashed_assets+=("${asset}")
+done < <(
+  printf '%s' "${index_html}" \
+    | grep -oE '/dist/app\.[0-9a-f]{12}\.(js|css)' \
+    | sort -u
+)
+[[ "${#hashed_assets[@]}" -eq 2 ]] || {
+  echo "FAIL: index.html must reference exactly one hashed JS and CSS asset" >&2
   exit 1
 }
+for asset in "${hashed_assets[@]}"; do
+  status="$(http_status "http://127.0.0.1:8080${asset}" || true)"
+  [[ "${status}" == "200" ]] || {
+    echo "FAIL: referenced asset ${asset} returned ${status:-no response}" >&2
+    exit 1
+  }
+  docker exec "${container_name}" wget --server-response --spider \
+    "http://127.0.0.1:8080${asset}" 2>&1 \
+    | tr -d '\r' \
+    | grep -Eiq '^[[:space:]]*Cache-Control: .*max-age=31536000.*immutable' || {
+    echo "FAIL: immutable cache header is missing for ${asset}" >&2
+    exit 1
+  }
+done
 
 docker exec "${container_name}" wget --server-response --spider \
   http://127.0.0.1:8080/index.html 2>&1 \
   | tr -d '\r' \
-  | grep -Eiq '^[[:space:]]*Cache-Control: .*no-(store|cache)' || {
-  echo "FAIL: index.html no-cache header is missing" >&2
+  | grep -Eiq '^[[:space:]]*Cache-Control: .*no-store' || {
+  echo "FAIL: index.html no-store header is missing" >&2
   exit 1
 }
+
+docker exec "${container_name}" wget --server-response --spider \
+  http://127.0.0.1:8080/version.json 2>&1 \
+  | tr -d '\r' \
+  | grep -Eiq '^[[:space:]]*Cache-Control: .*no-store' || {
+  echo "FAIL: version.json no-store header is missing" >&2
+  exit 1
+}
+
+revision="$(docker image inspect \
+  --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' \
+  "${image_tag}")"
+manifest="$(docker exec "${container_name}" wget --quiet --output-document=- \
+  http://127.0.0.1:8080/version.json)"
+manifest_version="$(printf '%s' "${manifest}" \
+  | sed -nE 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p')"
+[[ "${manifest_version}" == "${revision}" ]] || {
+  echo "FAIL: version.json ${manifest_version:-missing} does not match OCI revision ${revision}" >&2
+  exit 1
+}
+
+for legacy_asset in /dist/app.js /dist/app.css; do
+  status="$(http_status "http://127.0.0.1:8080${legacy_asset}" || true)"
+  [[ "${status}" == "404" ]] || {
+    echo "FAIL: legacy asset ${legacy_asset} must not exist, found ${status:-no response}" >&2
+    exit 1
+  }
+done
 
 docker exec "${container_name}" nginx -t >/dev/null
 if docker exec "${container_name}" nginx -T 2>&1 | grep -q 'proxy_pass'; then

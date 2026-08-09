@@ -179,7 +179,7 @@ test("피드 좋아요는 상세 왕복 후 아이콘과 수를 유지하고 바
   await expect(returnedLike).toHaveText("1");
   await expect(returnedLike.locator("img")).toHaveAttribute(
     "src",
-    /heart-fill\.svg$/,
+    /heart-fill\.[0-9a-f]{12}\.svg$/,
   );
 
   await returnedLike.click();
@@ -200,14 +200,17 @@ test("북마크에서도 좋아요 수와 heart 아이콘을 토글한다", asyn
   await expect(like).toHaveText("10");
   await expect(like.locator("img")).toHaveAttribute(
     "src",
-    /heart-stroke\.svg$/,
+    /heart-stroke\.[0-9a-f]{12}\.svg$/,
   );
 
   await like.click();
   await expect(like).toBeDisabled();
   await expect(like).toHaveAttribute("aria-pressed", "true");
   await expect(like).toHaveText("11");
-  await expect(like.locator("img")).toHaveAttribute("src", /heart-fill\.svg$/);
+  await expect(like.locator("img")).toHaveAttribute(
+    "src",
+    /heart-fill\.[0-9a-f]{12}\.svg$/,
+  );
   await expect(like).toBeEnabled();
 
   await like.click();
@@ -215,7 +218,7 @@ test("북마크에서도 좋아요 수와 heart 아이콘을 토글한다", asyn
   await expect(like).toHaveText("10");
   await expect(like.locator("img")).toHaveAttribute(
     "src",
-    /heart-stroke\.svg$/,
+    /heart-stroke\.[0-9a-f]{12}\.svg$/,
   );
   await expect(like).toBeEnabled();
   expect(state.likeRequests).toHaveLength(2);
@@ -266,11 +269,17 @@ for (const [name, path] of [
     const icon = bookmark.locator("img");
 
     await expect(bookmark).toHaveAttribute("aria-pressed", "false");
-    await expect(icon).toHaveAttribute("src", /receipt-stroke-vector\.svg$/);
+    await expect(icon).toHaveAttribute(
+      "src",
+      /receipt-stroke-vector\.[0-9a-f]{12}\.svg$/,
+    );
     await bookmark.click();
     await expect(bookmark).toBeDisabled();
     await expect(bookmark).toHaveAttribute("aria-pressed", "true");
-    await expect(icon).toHaveAttribute("src", /receipt-fill-vector\.svg$/);
+    await expect(icon).toHaveAttribute(
+      "src",
+      /receipt-fill-vector\.[0-9a-f]{12}\.svg$/,
+    );
     expect(state.bookmarkRequests).toHaveLength(1);
     expect(state.bookmarkRequests[0]).toMatchObject({
       method: "POST",
@@ -286,13 +295,13 @@ for (const [name, path] of [
     await expect(reloaded).toHaveAttribute("aria-pressed", "true");
     await expect(reloaded.locator("img")).toHaveAttribute(
       "src",
-      /receipt-fill-vector\.svg$/,
+      /receipt-fill-vector\.[0-9a-f]{12}\.svg$/,
     );
     await reloaded.click();
     await expect(reloaded).toHaveAttribute("aria-pressed", "false");
     await expect(reloaded.locator("img")).toHaveAttribute(
       "src",
-      /receipt-stroke-vector\.svg$/,
+      /receipt-stroke-vector\.[0-9a-f]{12}\.svg$/,
     );
     await expect(reloaded).toBeEnabled();
     expect(state.bookmarkRequests.at(-1).method).toBe("DELETE");
@@ -303,7 +312,7 @@ for (const [name, path] of [
     await expect(reloaded).toHaveAttribute("aria-pressed", "false");
     await expect(reloaded.locator("img")).toHaveAttribute(
       "src",
-      /receipt-stroke-vector\.svg$/,
+      /receipt-stroke-vector\.[0-9a-f]{12}\.svg$/,
     );
     await expect(reloaded).toBeEnabled();
 

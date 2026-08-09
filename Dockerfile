@@ -7,14 +7,16 @@ FROM ${NODE_IMAGE} AS builder
 
 WORKDIR /app
 
+ARG OCI_REVISION=local
+
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
 COPY index.html webpack.config.js ./
 COPY src ./src
 
-RUN npm run build:react \
-    && find dist -type f -name '*.map' -delete
+RUN APP_VERSION="${OCI_REVISION}" npm run build:react \
+    && find build -type f -name '*.map' -delete
 
 FROM ${NGINX_IMAGE} AS nginx-rootfs
 RUN rm -f /etc/nginx/conf.d/default.conf
@@ -31,8 +33,7 @@ LABEL org.opencontainers.image.source="${OCI_SOURCE}" \
       org.opencontainers.image.version="${OCI_VERSION}"
 
 COPY --from=nginx-rootfs / /
-COPY --from=builder --chown=nginx:nginx /app/index.html /usr/share/nginx/html/index.html
-COPY --from=builder --chown=nginx:nginx /app/dist /usr/share/nginx/html/dist
+COPY --from=builder --chown=nginx:nginx /app/build/ /usr/share/nginx/html/
 
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 

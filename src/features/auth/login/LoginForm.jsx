@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { userApi } from "../../../entities/user/api/userApi.js";
 import { Button } from "../../../shared/ui/Button.jsx";
 import { signupLogoImage } from "../../../shared/assets/index.js";
+import { useReloadBlocker } from "../../../shared/update/useReloadBlocker.js";
 
 export function LoginForm({ onAuthenticated, onSignup }) {
   const [email, setEmail] = useState("");
@@ -9,6 +10,7 @@ export function LoginForm({ onAuthenticated, onSignup }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const pendingRef = useRef(false);
+  useReloadBlocker("login-form", Boolean(email || password || pending));
 
   async function submit(event) {
     event.preventDefault();

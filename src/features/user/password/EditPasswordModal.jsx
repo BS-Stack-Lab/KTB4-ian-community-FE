@@ -3,6 +3,7 @@ import { userApi } from "../../../entities/user/api/userApi.js";
 import { backLeftIcon } from "../../../shared/assets/index.js";
 import { Modal } from "../../../shared/ui/Modal.jsx";
 import { validatePasswordChange } from "./validatePasswordChange.js";
+import { useReloadBlocker } from "../../../shared/update/useReloadBlocker.js";
 
 const empty = { password: "", newPassword: "", newPasswordConfirm: "" };
 
@@ -13,6 +14,12 @@ export function EditPasswordModal({ open, onClose, userId }) {
   const [serverError, setServerError] = useState("");
   const pendingRef = useRef(false);
   const valid = Object.keys(validatePasswordChange(values)).length === 0;
+  useReloadBlocker(
+    "edit-password",
+    open || pending
+      ? pending || Object.values(values).some((value) => Boolean(value))
+      : false,
+  );
 
   useEffect(() => {
     if (!open) return;

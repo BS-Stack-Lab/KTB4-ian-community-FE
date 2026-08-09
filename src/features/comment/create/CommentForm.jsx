@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { postApi } from "../../../entities/post/api/postApi.js";
 import { directionTopIcon } from "../../../shared/assets/index.js";
+import { useReloadBlocker } from "../../../shared/update/useReloadBlocker.js";
 
 export function CommentForm({ postId, onCreated }) {
   const [comment, setComment] = useState("");
@@ -8,6 +9,7 @@ export function CommentForm({ postId, onCreated }) {
   const [error, setError] = useState("");
   const pendingRef = useRef(false);
   const enabled = comment.trim().length > 0 && !pending;
+  useReloadBlocker("create-comment", Boolean(comment || pending));
 
   async function submit(event) {
     event.preventDefault();

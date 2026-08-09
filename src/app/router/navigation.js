@@ -6,6 +6,7 @@ export function navigate(path, { replace = false } = {}) {
     : path;
   history[replace ? "replaceState" : "pushState"]({}, "", destination);
   dispatchEvent(new PopStateEvent("popstate"));
+  dispatchEvent(new CustomEvent("app:navigation", { detail: { path } }));
 }
 
 export function currentRoute() {

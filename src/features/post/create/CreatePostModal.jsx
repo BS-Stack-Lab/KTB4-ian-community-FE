@@ -11,6 +11,7 @@ import {
 } from "../../../shared/assets/index.js";
 import { apiAssetUrl } from "../../../shared/config/env.js";
 import { Modal } from "../../../shared/ui/Modal.jsx";
+import { useReloadBlocker } from "../../../shared/update/useReloadBlocker.js";
 import {
   createOrientedPreview,
   defaultNormalizedCrop,
@@ -42,6 +43,19 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
   const pendingRef = useRef(false);
   const editorAbortRef = useRef(null);
   const valid = content.trim().length > 0 && !pending && !editorPending;
+  useReloadBlocker(
+    "create-post",
+    open &&
+      Boolean(
+        content ||
+        attachment ||
+        draft ||
+        editorOpen ||
+        editorPending ||
+        pending ||
+        failedMediaId,
+      ),
+  );
 
   useEffect(() => {
     if (!open) return;

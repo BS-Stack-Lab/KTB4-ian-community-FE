@@ -20,3 +20,5 @@ backup/
 *.dump
 *.tar.gz
 artifacts/
+/build/
+/dist/

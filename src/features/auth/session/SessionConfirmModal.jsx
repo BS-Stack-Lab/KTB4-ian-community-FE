@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { userApi } from "../../../entities/user/api/userApi.js";
 import { Button } from "../../../shared/ui/Button.jsx";
 import { Modal } from "../../../shared/ui/Modal.jsx";
+import { useReloadBlocker } from "../../../shared/update/useReloadBlocker.js";
 
 export function SessionConfirmModal({ action, userId, onCancel, onComplete }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const pendingRef = useRef(false);
+  useReloadBlocker("session-mutation", pending);
 
   useEffect(() => {
     if (!action) return;

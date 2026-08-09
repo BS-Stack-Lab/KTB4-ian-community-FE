@@ -13,7 +13,7 @@ export default defineConfig({
   },
   webServer: {
     command: "npm run serve:test",
-    url: "http://127.0.0.1:4173/dist/app.js",
+    url: "http://127.0.0.1:4173/",
     reuseExistingServer: true,
   },
 });

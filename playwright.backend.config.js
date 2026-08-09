@@ -24,7 +24,7 @@ export default defineConfig({
     ? undefined
     : {
         command: "npm run serve:test -- --port 5502",
-        url: `${baseURL}/dist/app.js`,
+        url: `${baseURL}/`,
         reuseExistingServer: true,
       },
 });
