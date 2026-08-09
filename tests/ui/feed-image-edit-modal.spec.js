@@ -7,7 +7,7 @@ const user = {
   profileImage: "/images/profile-default.svg",
 };
 
-async function prepare(page) {
+async function prepare(page, { onUpload = () => {} } = {}) {
   await page.addInitScript(() => {
     sessionStorage.setItem("userId", "7");
     sessionStorage.setItem(
@@ -46,6 +46,7 @@ async function prepare(page) {
       });
     }
     if (url.pathname === "/api/v2/media/uploads") {
+      onUpload(request.postDataJSON());
       return route.fulfill({
         json: {
           data: {
@@ -216,4 +217,30 @@ test("FeedImageEdit 모바일은 32px 외부 여백과 448:288 비율을 유지�
     path: "tests/visual/actual/feed-image-edit-modal-390x844.png",
     fullPage: true,
   });
+});
+
+test("FeedImageEdit 확대 결과는 percentage Crop으로 업로드한다", async ({
+  page,
+}) => {
+  let uploadPayload;
+  await prepare(page, {
+    onUpload: (payload) => {
+      uploadPayload = payload;
+    },
+  });
+  const dialog = await openImageEditor(page);
+
+  await dialog.getByLabel("이미지 확대 배율").fill("2");
+  await dialog.getByRole("button", { name: "이미지 첨부" }).click();
+  await expect(page.getByRole("dialog", { name: "피드 생성" })).toBeVisible();
+
+  expect(uploadPayload.zoom).toBe(2);
+  expect(uploadPayload.crop).toMatchObject({
+    x: expect.any(Number),
+    y: expect.any(Number),
+    width: expect.any(Number),
+    height: expect.any(Number),
+  });
+  expect(uploadPayload.crop.width).toBeLessThan(0.75);
+  expect(uploadPayload.crop.height).toBeLessThan(0.75);
 });

@@ -136,7 +136,7 @@ export function ImageEditor({
           aspect={frameAspect(frame)}
           onCropChange={setCrop}
           onZoomChange={setZoom}
-          onCropComplete={(_, percentages) => {
+          onCropComplete={(percentages) => {
             const next = normalizedCrop(percentages);
             setCropArea(next);
             publish(frame, rotation, next);

@@ -4,6 +4,26 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ImageEditor } from "../../src/features/media/ui/ImageEditor.jsx";
 
+vi.mock("react-easy-crop", async () => {
+  const { createElement: createMockElement } = await import("react");
+  return {
+    default: ({ onCropComplete }) =>
+      createMockElement(
+        "button",
+        {
+          type: "button",
+          "aria-label": "Crop 완료 시뮬레이션",
+          onClick: () =>
+            onCropComplete(
+              { x: 10, y: 20, width: 50, height: 60 },
+              { x: 120, y: 160, width: 600, height: 480 },
+            ),
+        },
+        "Crop 완료 시뮬레이션",
+      ),
+  };
+});
+
 describe("재사용 이미지 편집기", () => {
   let root;
   let container;
@@ -64,6 +84,34 @@ describe("재사용 이미지 편집기", () => {
     );
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ rotation: 0 }),
+    );
+  });
+
+  it("Cropper의 percentage를 정규화하고 픽셀값은 사용하지 않는다", async () => {
+    const onChange = vi.fn();
+    await act(() =>
+      root.render(
+        createElement(ImageEditor, {
+          source: "data:image/png;base64,AA==",
+          purpose: "PROFILE",
+          width: 1200,
+          height: 800,
+          initialFrame: "PROFILE",
+          onChange,
+        }),
+      ),
+    );
+
+    await act(() =>
+      fireEvent.click(
+        getByRole(container, "button", { name: "Crop 완료 시뮬레이션" }),
+      ),
+    );
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        crop: { x: 0.1, y: 0.2, width: 0.5, height: 0.6 },
+      }),
     );
   });
 });

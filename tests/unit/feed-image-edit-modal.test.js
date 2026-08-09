@@ -4,6 +4,26 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FeedImageEditModal } from "../../src/features/media/ui/FeedImageEditModal.jsx";
 
+vi.mock("react-easy-crop", async () => {
+  const { createElement: createMockElement } = await import("react");
+  return {
+    default: ({ onCropComplete }) =>
+      createMockElement(
+        "button",
+        {
+          type: "button",
+          "aria-label": "Crop 완료 시뮬레이션",
+          onClick: () =>
+            onCropComplete(
+              { x: 12.5, y: 25, width: 50, height: 60 },
+              { x: 200, y: 225, width: 800, height: 540 },
+            ),
+        },
+        "Crop 완료 시뮬레이션",
+      ),
+  };
+});
+
 describe("FeedImageEdit Figma Modal", () => {
   let root;
 
@@ -21,7 +41,11 @@ describe("FeedImageEdit Figma Modal", () => {
     await act(() => root.unmount());
   });
 
-  async function render(initialEdit, onAttach = vi.fn()) {
+  async function render(
+    initialEdit,
+    onAttach = vi.fn(),
+    frame = "POST_LANDSCAPE",
+  ) {
     await act(() =>
       root.render(
         createElement(FeedImageEditModal, {
@@ -29,7 +53,7 @@ describe("FeedImageEdit Figma Modal", () => {
           source: "data:image/png;base64,AA==",
           width: 1600,
           height: 900,
-          frame: "POST_LANDSCAPE",
+          frame,
           initialEdit,
           onCancel: vi.fn(),
           onAttach,
@@ -85,6 +109,26 @@ describe("FeedImageEdit Figma Modal", () => {
         rotation: 0,
         zoom: 1.5,
         position: expect.objectContaining({ x: expect.any(Number) }),
+      }),
+    );
+  });
+
+  it("Cropper의 픽셀값이 아닌 percentage를 첨부 좌표로 사용한다", async () => {
+    const onAttach = await render(undefined, vi.fn(), "POST_PORTRAIT");
+
+    await act(() =>
+      fireEvent.click(
+        document.querySelector('[aria-label="Crop 완료 시뮬레이션"]'),
+      ),
+    );
+    await act(() =>
+      fireEvent.click(document.querySelector('[aria-label="이미지 첨부"]')),
+    );
+
+    expect(onAttach).toHaveBeenCalledWith(
+      expect.objectContaining({
+        crop: { x: 0.125, y: 0.25, width: 0.5, height: 0.6 },
+        position: { x: 0.375, y: 0.55 },
       }),
     );
   });
