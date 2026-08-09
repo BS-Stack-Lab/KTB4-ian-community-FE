@@ -9,8 +9,8 @@ import {
 
 const MINIMUM_SIZE = {
   PROFILE: [320, 320],
-  POST_PORTRAIT: [448, 600],
-  POST_LANDSCAPE: [448, 288],
+  POST_PORTRAIT: [1344, 1800],
+  POST_LANDSCAPE: [1344, 864],
 };
 
 export function ImageEditor({

@@ -97,10 +97,10 @@ async function prepare(page, { createFails = false, createDelay = 0 } = {}) {
             transformVersion: 1,
             variants: [
               {
-                type: "POST_LANDSCAPE_1X",
+                type: "POST_LANDSCAPE_3X",
                 url: "/images/feed/edit-fixture.jpg",
-                width: 448,
-                height: 288,
+                width: 1344,
+                height: 864,
                 mimeType: "image/webp",
                 fileSize: 1024,
               },

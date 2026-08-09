@@ -88,10 +88,10 @@ async function prepare(
             transformVersion: 1,
             variants: [
               {
-                type: "POST_LANDSCAPE_1X",
+                type: "POST_LANDSCAPE_3X",
                 url: "/images/community-media.jpg",
-                width: 448,
-                height: 288,
+                width: 1344,
+                height: 864,
                 mimeType: "image/webp",
                 fileSize: 1024,
               },

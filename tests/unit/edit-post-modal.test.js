@@ -27,10 +27,10 @@ const v2Post = {
       mediaRevision: 1,
       variants: [
         {
-          type: "POST_LANDSCAPE_1X",
+          type: "POST_LANDSCAPE_3X",
           url: "https://cdn.example/landscape.webp",
-          width: 448,
-          height: 288,
+          width: 1344,
+          height: 864,
         },
       ],
     },
@@ -153,10 +153,10 @@ describe("피드 수정 Modal", () => {
       status: "READY",
       variants: [
         {
-          type: "POST_LANDSCAPE_1X",
+          type: "POST_LANDSCAPE_3X",
           url: "https://cdn.example/revision-2.webp",
-          width: 448,
-          height: 288,
+          width: 1344,
+          height: 864,
         },
       ],
     });
@@ -194,6 +194,47 @@ describe("피드 수정 Modal", () => {
       mediaIds: ["media-original"],
       revisionActivations: [{ mediaId: "media-original", revision: 2 }],
     });
+  });
+
+  it("이미지 처리를 기다리지 않고 수정 Modal로 복귀하고 READY 전 저장을 막는다", async () => {
+    let finishProcessing;
+    mediaApi.complete.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishProcessing = resolve;
+      }),
+    );
+    await renderModal();
+    const file = new File(["image"], "changed.png", { type: "image/png" });
+    await act(async () =>
+      fireEvent.change(document.querySelector('input[type="file"]'), {
+        target: { files: [file] },
+      }),
+    );
+
+    act(() =>
+      fireEvent.click(document.querySelector('[aria-label="이미지 첨부"]')),
+    );
+
+    expect(document.querySelector('[aria-label="피드 수정"]')).not.toBeNull();
+    expect(document.body.textContent).toContain("이미지 처리 중");
+    expect(document.querySelector('[aria-label="피드 수정"]').disabled).toBe(
+      true,
+    );
+    await vi.waitFor(() => expect(finishProcessing).toBeTypeOf("function"));
+
+    await act(async () =>
+      finishProcessing({
+        mediaId: "media-new",
+        status: "READY",
+        variants: [],
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(document.body.textContent).not.toContain("이미지 처리 중"),
+    );
+    expect(document.querySelector('[aria-label="피드 수정"]').disabled).toBe(
+      false,
+    );
   });
 
   it("본문 저장 실패 시 입력과 기존 이미지를 유지한다", async () => {

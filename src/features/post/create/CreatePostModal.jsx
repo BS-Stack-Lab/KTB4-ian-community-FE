@@ -119,7 +119,7 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
   }
 
   function editAttachedImage() {
-    if (!attachment) return;
+    if (!attachment || editorPending) return;
     setDraft({
       kind: "file",
       file: attachment.file,
@@ -147,49 +147,90 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
 
   async function attachImage(edit) {
     if (!draft?.file || editorPending) return;
-    editorAbortRef.current = new AbortController();
+    const controller = new AbortController();
+    const processingDraft = draft;
+    const previous = attachment;
+    const optimistic = {
+      file: processingDraft.file,
+      preview: processingDraft.preview,
+      edit,
+      media: null,
+      processing: true,
+      previous,
+    };
+    editorAbortRef.current = controller;
     setEditorPending(true);
     setEditorError("");
     discardMedia(failedMediaId);
     setFailedMediaId(null);
+    setAttachment(optimistic);
+    setEditorOpen(false);
     try {
-      const media = await uploadMedia(draft.file, edit, {
-        signal: editorAbortRef.current.signal,
+      const media = await uploadMedia(processingDraft.file, edit, {
+        signal: controller.signal,
       });
-      const previous = attachment;
+      if (controller.signal.aborted) {
+        discardMedia(media.mediaId);
+        return;
+      }
       const next = {
-        file: draft.file,
-        preview: draft.preview,
+        file: processingDraft.file,
+        preview: processingDraft.preview,
         edit,
         media,
       };
       setAttachment(next);
       if (previous && previous !== next) {
         discardAttachment(previous, {
-          revoke: previous.preview?.url !== draft.preview?.url,
+          revoke: previous.preview?.url !== processingDraft.preview?.url,
         });
       }
       setDraft(null);
-      setEditorOpen(false);
     } catch (cause) {
-      if (cause?.name !== "AbortError") {
+      if (cause?.name === "AbortError" || controller.signal.aborted) {
+        discardMedia(cause.mediaId);
+      } else {
+        setAttachment(previous);
         setFailedMediaId(cause.mediaId || null);
         setEditorError(cause.message || "이미지를 처리할 수 없습니다.");
+        setEditorOpen(true);
       }
     } finally {
-      editorAbortRef.current = null;
-      setEditorPending(false);
+      if (editorAbortRef.current === controller) {
+        editorAbortRef.current = null;
+        setEditorPending(false);
+      }
     }
   }
 
   function removeImage() {
+    editorAbortRef.current?.abort();
+    editorAbortRef.current = null;
+    setEditorPending(false);
+    if (attachment?.processing && attachment.previous) {
+      discardAttachment(attachment.previous, {
+        revoke: attachment.previous.preview?.url !== attachment.preview?.url,
+      });
+    }
     discardAttachment(attachment);
+    if (draft?.preview?.url && draft.preview.url !== attachment?.preview?.url) {
+      URL.revokeObjectURL(draft.preview.url);
+    }
+    setDraft(null);
     setAttachment(null);
   }
 
   function cancelAndClose() {
     editorAbortRef.current?.abort();
+    editorAbortRef.current = null;
+    setEditorPending(false);
     discardMedia(failedMediaId);
+    setFailedMediaId(null);
+    if (attachment?.processing && attachment.previous) {
+      discardAttachment(attachment.previous, {
+        revoke: attachment.previous.preview?.url !== attachment.preview?.url,
+      });
+    }
     discardAttachment(attachment);
     if (
       draft?.preview?.url &&
@@ -201,6 +242,7 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
     setAttachment(null);
     setDraft(null);
     setEditorOpen(false);
+    setEditorError("");
     setError("");
     onClose();
   }
@@ -259,7 +301,7 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
                   type="button"
                   aria-label="첨부 이미지 편집"
                   onClick={editAttachedImage}
-                  disabled={pending}
+                  disabled={pending || editorPending}
                 >
                   <img
                     src={previewUrl(attachment)}
@@ -280,6 +322,11 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
                     <img src={feedPreviewCloseRightIcon} alt="" />
                   </span>
                 </button>
+                {attachment.processing && (
+                  <span className="feed-editor__preview-status" role="status">
+                    이미지 처리 중
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -305,7 +352,7 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
               type="file"
               accept="image/png,image/jpeg,image/webp"
               onChange={choose}
-              disabled={pending}
+              disabled={pending || editorPending}
             />
           </label>
           <button
