@@ -27,19 +27,80 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Format
+        id: format
         run: npm run format:check
       - name: Build
+        id: build
+        env:
+          APP_VERSION: ${{ github.sha }}
         run: npm run build:react
+      - name: Reproducible contenthash build
+        id: reproducible_build
+        env:
+          APP_VERSION: ${{ github.sha }}
+        run: ./scripts/verify-reproducible-build.sh
       - name: Unit tests
-        run: npm run test:unit
+        id: unit
+        run: >-
+          npx vitest run tests/unit
+          --reporter=default --reporter=junit
+          --outputFile.junit=test-results/unit.xml
       - name: Integration tests
-        run: npm run test:integration
+        id: integration
+        run: >-
+          npx vitest run tests/integration
+          --reporter=default --reporter=junit
+          --outputFile.junit=test-results/integration.xml
       - name: Production bundle policy
+        id: bundle_policy
         run: ./scripts/verify-build.sh
       - name: Workflow and gate policy tests
+        id: workflow_policy
         run: |
           ./scripts/verify-workflows.sh
           ./scripts/test-required-gate.sh
+      - name: Upload web root and test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fe-web-root-and-tests-${{ github.sha }}
+          path: |
+            build/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Write quality summary
+        if: always()
+        env:
+          FORMAT_RESULT: ${{ steps.format.outcome }}
+          BUILD_RESULT: ${{ steps.build.outcome }}
+          UNIT_RESULT: ${{ steps.unit.outcome }}
+          INTEGRATION_RESULT: ${{ steps.integration.outcome }}
+          BUNDLE_RESULT: ${{ steps.bundle_policy.outcome }}
+          WORKFLOW_RESULT: ${{ steps.workflow_policy.outcome }}
+          REPRODUCIBLE_RESULT: ${{ steps.reproducible_build.outcome }}
+        run: |
+          {
+            echo "## Frontend quality"
+            echo
+            echo "- Commit SHA: \`${GITHUB_SHA}\`"
+            echo "- Format: ${FORMAT_RESULT}"
+            echo "- Build: ${BUILD_RESULT}"
+            echo "- Reproducible contenthash: ${REPRODUCIBLE_RESULT}"
+            echo "- Unit tests: ${UNIT_RESULT}"
+            echo "- Integration tests: ${INTEGRATION_RESULT}"
+            echo "- Bundle policy: ${BUNDLE_RESULT}"
+            echo "- Workflow policy: ${WORKFLOW_RESULT}"
+            echo
+            echo "### Hashed assets"
+            if [[ -d build/dist ]]; then
+              find build/dist -maxdepth 1 -type f \
+                -name 'app.*' ! -name '*.LICENSE.txt' \
+                -printf -- '- %p\n' | sort
+            else
+              echo "- Build output unavailable"
+            fi
+          } >>"${GITHUB_STEP_SUMMARY}"
 
   ui-test:
     name: FE / ui-test
@@ -53,18 +114,30 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
-      - name: Chromium UI tests (111)
+      - name: Chromium UI tests (113)
+        id: ui
         run: npm run test:ui
-      - name: Upload failure traces and report
-        if: failure()
+      - name: Upload UI report
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: fe-ui-failure-${{ github.run_id }}
+          name: fe-ui-report-${{ github.sha }}
           path: |
             playwright-report/
             test-results/
           if-no-files-found: ignore
           retention-days: 7
+      - name: Write UI summary
+        if: always()
+        env:
+          UI_RESULT: ${{ steps.ui.outcome }}
+        run: |
+          {
+            echo "## Frontend UI"
+            echo
+            echo "- Commit SHA: \`${GITHUB_SHA}\`"
+            echo "- Playwright UI tests: ${UI_RESULT}"
+          } >>"${GITHUB_STEP_SUMMARY}"
 
   image-build:
     name: FE / image-build
@@ -74,6 +147,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
       - name: Build linux/amd64 candidate
+        id: candidate
         run: |
           docker buildx build \
             --platform linux/amd64 \
@@ -81,11 +155,61 @@ jobs:
             --tag "community-frontend:${GITHUB_SHA}" \
             --build-arg "OCI_REVISION=${GITHUB_SHA}" \
             --build-arg "OCI_VERSION=${GITHUB_SHA}" \
+            --metadata-file "${RUNNER_TEMP}/frontend-build-metadata.json" \
             .
+          digest="$(jq -r '."containerimage.digest" // empty' \
+            "${RUNNER_TEMP}/frontend-build-metadata.json")"
+          [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=${digest}" >>"${GITHUB_OUTPUT}"
+
+          first_archive="${RUNNER_TEMP}/frontend-runtime-1.tar"
+          docker buildx build \
+            --platform linux/amd64 \
+            --output "type=oci,dest=${first_archive}" \
+            --build-arg "OCI_REVISION=${GITHUB_SHA}" \
+            --build-arg "OCI_VERSION=${GITHUB_SHA}" \
+            .
+          runtime_digest="$(tar -xOf "${first_archive}" index.json | jq -r '
+            [.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "amd64"
+            )] | if length == 1 then .[0].digest else empty end
+          ')"
+          [[ "${runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+          second_archive="${RUNNER_TEMP}/frontend-runtime-2.tar"
+          docker buildx build \
+            --platform linux/amd64 \
+            --output "type=oci,dest=${second_archive}" \
+            --build-arg "OCI_REVISION=${GITHUB_SHA}" \
+            --build-arg "OCI_VERSION=${GITHUB_SHA}" \
+            .
+          rebuilt_runtime_digest="$(tar -xOf "${second_archive}" index.json | jq -r '
+            [.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "amd64"
+            )] | if length == 1 then .[0].digest else empty end
+          ')"
+          [[ "${rebuilt_runtime_digest}" == "${runtime_digest}" ]]
+          echo "runtime_digest=${runtime_digest}" >>"${GITHUB_OUTPUT}"
       - name: Verify static-origin runtime
+        id: image_policy
         env:
           IMAGE_TAG: community-frontend:${{ github.sha }}
         run: ./scripts/verify-image.sh
+      - name: Write image summary
+        if: always()
+        env:
+          CANDIDATE_DIGEST: ${{ steps.candidate.outputs.digest }}
+          RUNTIME_DIGEST: ${{ steps.candidate.outputs.runtime_digest }}
+          IMAGE_POLICY_RESULT: ${{ steps.image_policy.outcome }}
+        run: |
+          {
+            echo "## Frontend candidate image"
+            echo
+            echo "- Commit SHA: \`${GITHUB_SHA}\`"
+            echo "- Provenance index digest: \`${CANDIDATE_DIGEST:-unavailable}\`"
+            echo "- Reproducible linux/amd64 runtime digest: \`${RUNTIME_DIGEST:-unavailable}\`"
+            echo "- Runtime policy: ${IMAGE_POLICY_RESULT}"
+          } >>"${GITHUB_STEP_SUMMARY}"
 
   compose-smoke:
     name: FE / compose-smoke

@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { userApi } from "../../../../entities/user/api/userApi.js";
 import { signupLogoImage } from "../../../../shared/assets/index.js";
 import { Button } from "../../../../shared/ui/Button.jsx";
+import { useReloadBlocker } from "../../../../shared/update/useReloadBlocker.js";
 import {
   isSignupValid,
   signupPayload,
@@ -41,6 +42,10 @@ export function SignupForm({ onAuthenticated, onLogin }) {
   const pendingRef = useRef(false);
 
   const valid = isSignupValid(values);
+  useReloadBlocker(
+    "signup-form",
+    pending || Object.values(values).some((value) => Boolean(value)),
+  );
 
   function change(field) {
     return (event) => {

@@ -36,5 +36,11 @@ if ! grep -qE 'ghcr\.io/bs-stack-lab/ktb4-ian-community-fe' "${root}/.github/wor
   echo "Frontend publisher does not target the personal GHCR namespace." >&2
   failures=$((failures + 1))
 fi
+if ! grep -qF 'Reproducible linux/amd64 runtime digest' "${ci_workflow}" ||
+  ! grep -qF 'Resolve reproducible linux/amd64 runtime digest' "${root}/.github/workflows/publish-image.yml" ||
+  ! grep -qF 'subject-digest: ${{ steps.runtime.outputs.digest }}' "${root}/.github/workflows/publish-image.yml"; then
+  echo "Frontend image workflows must compare and attest the linux/amd64 runtime digest." >&2
+  failures=$((failures + 1))
+fi
 [[ "${failures}" -eq 0 ]] || exit 1
 echo "PASS: Frontend workflows enforce PR CI, immutable publication, and no automatic deployment."

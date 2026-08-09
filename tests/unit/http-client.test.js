@@ -3,6 +3,10 @@ import {
   httpClient,
   resetHttpClientForTests,
 } from "../../src/shared/api/httpClient.js";
+import {
+  reloadSafetyState,
+  resetReloadSafetyForTests,
+} from "../../src/shared/update/reloadSafety.js";
 
 const response = (status, body = null) =>
   new Response(body && JSON.stringify(body), {
@@ -13,6 +17,7 @@ const response = (status, body = null) =>
 describe("React HTTP Client", () => {
   beforeEach(() => {
     resetHttpClientForTests();
+    resetReloadSafetyForTests();
     document.cookie = "XSRF-TOKEN=test; Path=/";
     globalThis.__API_BASE_URL__ = "http://api.test";
     globalThis.fetch = vi.fn();
@@ -87,5 +92,32 @@ describe("React HTTP Client", () => {
     await expect(httpClient("/api/posts")).rejects.toBe(error);
     expect(sessionStorage.getItem("community.user")).toBe("{}");
     expect(location.pathname).toBe("/feed");
+  });
+
+  it("Mutation 응답을 받을 때까지 자동 갱신을 차단한다", async () => {
+    let resolveRequest;
+    fetch.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        }),
+    );
+
+    const request = httpClient("/api/posts", {
+      method: "POST",
+      body: JSON.stringify({ content: "작업 중" }),
+    });
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    expect(reloadSafetyState()).toMatchObject({
+      activeMutations: 1,
+      safe: false,
+    });
+
+    resolveRequest(response(204));
+    await expect(request).resolves.toBeNull();
+    expect(reloadSafetyState()).toMatchObject({
+      activeMutations: 0,
+      safe: true,
+    });
   });
 });

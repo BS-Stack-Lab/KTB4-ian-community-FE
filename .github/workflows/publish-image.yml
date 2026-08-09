@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
-      digest: ${{ steps.publish.outputs.digest }}
+      digest: ${{ steps.runtime.outputs.digest }}
       source_sha: ${{ steps.source.outputs.sha }}
     steps:
       - name: Validate trusted source identity
@@ -69,9 +69,42 @@ jobs:
             org.opencontainers.image.version=${{ steps.source.outputs.sha }}
           cache-from: type=gha,scope=fe-production
           cache-to: type=gha,mode=max,scope=fe-production
+      - name: Resolve reproducible linux/amd64 runtime digest
+        id: runtime
+        env:
+          IMAGE: ghcr.io/bs-stack-lab/ktb4-ian-community-fe:${{ steps.source.outputs.sha }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          manifest="$(docker buildx imagetools inspect "${IMAGE}" --format '{{json .Manifest}}')"
+          runtime_digest="$(jq -r '
+            [.manifests[] | select(
+              .platform.os == "linux" and .platform.architecture == "amd64"
+            )] | if length == 1 then .[0].digest else empty end
+          ' <<<"${manifest}")"
+          [[ "${runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          resolved="${IMAGE%:*}@${runtime_digest}"
+          labels="$(docker buildx imagetools inspect "${resolved}" --format '{{json .Image.Config.Labels}}')"
+          jq -e --arg revision "${SOURCE_SHA}" '
+            .["org.opencontainers.image.revision"] == $revision
+          ' <<<"${labels}" >/dev/null
+          echo "digest=${runtime_digest}" >>"${GITHUB_OUTPUT}"
       - name: Attest provenance
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ghcr.io/bs-stack-lab/ktb4-ian-community-fe
-          subject-digest: ${{ steps.publish.outputs.digest }}
+          subject-digest: ${{ steps.runtime.outputs.digest }}
           push-to-registry: true
+      - name: Write published image summary
+        if: always()
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          INDEX_DIGEST: ${{ steps.publish.outputs.digest }}
+          PUBLISHED_DIGEST: ${{ steps.runtime.outputs.digest }}
+        run: |
+          {
+            echo "## Published frontend image"
+            echo
+            echo "- Commit SHA: \`${SOURCE_SHA}\`"
+            echo "- Provenance index digest: \`${INDEX_DIGEST:-unavailable}\`"
+            echo "- Attested linux/amd64 runtime digest: \`${PUBLISHED_DIGEST:-unavailable}\`"
+          } >>"${GITHUB_STEP_SUMMARY}"

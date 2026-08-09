@@ -1,6 +1,7 @@
 import { ApiError } from "./apiError.js";
 import { errorMessageFor } from "./errorMessages.js";
 import { apiBaseUrl } from "../config/env.js";
+import { beginTrackedMutation } from "../update/reloadSafety.js";
 
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const NO_REFRESH_PATHS = new Set([
@@ -166,24 +167,31 @@ async function ensureCsrfCookie(signal) {
 
 async function send(path, options = {}) {
   const method = (options.method || "GET").toUpperCase();
+  const releaseMutation = UNSAFE_METHODS.has(method)
+    ? beginTrackedMutation()
+    : () => {};
   const headers = new Headers(options.headers || {});
-  if (options.body && !(options.body instanceof FormData)) {
-    if (!headers.has("Content-Type"))
-      headers.set("Content-Type", "application/json");
+  try {
+    if (options.body && !(options.body instanceof FormData)) {
+      if (!headers.has("Content-Type"))
+        headers.set("Content-Type", "application/json");
+    }
+    if (UNSAFE_METHODS.has(method)) {
+      await ensureCsrfCookie(options.signal);
+      // 쿠키를 읽은 뒤 비동기 경계를 두지 않고 요청을 시작해야, 다른 응답이
+      // 토큰 쿠키를 갱신해 헤더와 쿠키가 불일치하는 경쟁 조건을 피할 수 있다.
+      headers.set("X-XSRF-TOKEN", csrfToken());
+    }
+    const { __retried, ...fetchOptions } = options;
+    return await fetch(`${apiBaseUrl()}${path}`, {
+      ...fetchOptions,
+      method,
+      headers,
+      credentials: "include",
+    });
+  } finally {
+    releaseMutation();
   }
-  if (UNSAFE_METHODS.has(method)) {
-    await ensureCsrfCookie(options.signal);
-    // 쿠키를 읽은 뒤 비동기 경계를 두지 않고 요청을 시작해야, 다른 응답이
-    // 토큰 쿠키를 갱신해 헤더와 쿠키가 불일치하는 경쟁 조건을 피할 수 있다.
-    headers.set("X-XSRF-TOKEN", csrfToken());
-  }
-  const { __retried, ...fetchOptions } = options;
-  return fetch(`${apiBaseUrl()}${path}`, {
-    ...fetchOptions,
-    method,
-    headers,
-    credentials: "include",
-  });
 }
 
 function expiryValue(value) {

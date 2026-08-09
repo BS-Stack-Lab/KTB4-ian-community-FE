@@ -3,6 +3,7 @@ import { postApi } from "../../../entities/post/api/postApi.js";
 import { UserAvatar } from "../../../entities/user/ui/UserAvatar.jsx";
 import { directionTopIcon } from "../../../shared/assets/index.js";
 import { Modal } from "../../../shared/ui/Modal.jsx";
+import { useReloadBlocker } from "../../../shared/update/useReloadBlocker.js";
 
 export function EditCommentModal({ open, onClose, comment, onUpdated }) {
   const initialContent = comment?.comment ?? comment?.content ?? "";
@@ -14,6 +15,10 @@ export function EditCommentModal({ open, onClose, comment, onUpdated }) {
     content.trim().length > 0 &&
     content.trim() !== initialContent.trim() &&
     !pending;
+  useReloadBlocker(
+    "edit-comment",
+    open && (pending || content.trim() !== initialContent.trim()),
+  );
 
   useEffect(() => {
     if (!open) return;

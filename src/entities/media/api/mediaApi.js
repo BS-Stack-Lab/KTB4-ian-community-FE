@@ -1,5 +1,6 @@
 import { ApiError } from "../../../shared/api/apiError.js";
 import { httpClient } from "../../../shared/api/httpClient.js";
+import { beginTrackedMutation } from "../../../shared/update/reloadSafety.js";
 
 const json = (value) => JSON.stringify(value);
 
@@ -11,11 +12,14 @@ async function uploadToPresignedPost(file, upload, signal) {
   body.append("file", file);
 
   let response;
+  const releaseMutation = beginTrackedMutation();
   try {
     response = await fetch(upload.url, { method: "POST", body, signal });
   } catch (cause) {
     if (cause?.name === "AbortError") throw cause;
     throw new ApiError("이미지 원본 업로드에 실패했습니다.", { cause });
+  } finally {
+    releaseMutation();
   }
   if (!response.ok) {
     throw new ApiError("이미지 원본 업로드에 실패했습니다.", {

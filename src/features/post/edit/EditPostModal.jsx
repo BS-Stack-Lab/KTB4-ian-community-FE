@@ -11,6 +11,7 @@ import {
 } from "../../../shared/assets/index.js";
 import { apiAssetUrl } from "../../../shared/config/env.js";
 import { Modal } from "../../../shared/ui/Modal.jsx";
+import { useReloadBlocker } from "../../../shared/update/useReloadBlocker.js";
 import {
   createOrientedPreview,
   defaultNormalizedCrop,
@@ -99,6 +100,20 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
     !pending &&
     !editorPending &&
     !sourcePending;
+  useReloadBlocker(
+    "edit-post",
+    open &&
+      Boolean(
+        contentChanged ||
+        imageChanged ||
+        draft ||
+        editorOpen ||
+        editorPending ||
+        sourcePending ||
+        pending ||
+        failedDraft,
+      ),
+  );
 
   useEffect(() => {
     if (!open) return;

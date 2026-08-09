@@ -14,6 +14,7 @@ import {
   preferredVariant,
 } from "../../../entities/media/model/mediaModel.js";
 import { mediaApi } from "../../../entities/media/api/mediaApi.js";
+import { useReloadBlocker } from "../../../shared/update/useReloadBlocker.js";
 
 export function EditProfileModal({
   open,
@@ -35,6 +36,11 @@ export function EditProfileModal({
   const nicknameValid = nicknameValue.length >= 1 && nicknameValue.length <= 10;
   const nicknameChanged = nicknameValue !== user.nickname;
   const valid = nicknameValid && (nicknameChanged || Boolean(file)) && !pending;
+  useReloadBlocker(
+    "edit-profile",
+    open &&
+      Boolean(nicknameChanged || file || preview || preparedMedia || pending),
+  );
 
   useEffect(() => {
     if (!open) return;
