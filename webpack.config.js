@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import HtmlWebpackPlugin from "html-webpack-plugin";
@@ -8,6 +9,43 @@ const appVersion = (process.env.APP_VERSION || "local").trim();
 
 if (!/^(?:local|[0-9a-f]{40})$/.test(appVersion)) {
   throw new Error("APP_VERSION must be 'local' or a 40-character commit SHA");
+}
+
+const metadataAssets = [
+  {
+    source: path.join(root, "src/shared/assets/meta/favicon.ico"),
+    filename: "favicon.ico",
+  },
+  {
+    source: path.join(root, "src/shared/assets/meta/opengraph.png"),
+    filename: "opengraph.png",
+  },
+];
+
+class StaticMetadataAssetsPlugin {
+  apply(compiler) {
+    compiler.hooks.thisCompilation.tap(
+      "StaticMetadataAssetsPlugin",
+      (compilation) => {
+        const { Compilation, sources } = compiler.webpack;
+        compilation.hooks.processAssets.tapPromise(
+          {
+            name: "StaticMetadataAssetsPlugin",
+            stage: Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
+          },
+          async () => {
+            await Promise.all(
+              metadataAssets.map(async ({ source, filename }) => {
+                compilation.fileDependencies.add(source);
+                const content = await fs.readFile(source);
+                compilation.emitAsset(filename, new sources.RawSource(content));
+              }),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 class VersionManifestPlugin {
@@ -93,6 +131,7 @@ export default {
       scriptLoading: "defer",
       appVersion,
     }),
+    new StaticMetadataAssetsPlugin(),
     new VersionManifestPlugin(),
   ],
   resolve: { extensions: [".js", ".jsx"] },

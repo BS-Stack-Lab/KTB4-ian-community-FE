@@ -22,8 +22,11 @@ fi
 
 index_file="${root}/index.html"
 version_file="${root}/version.json"
-[[ -f "${index_file}" && -f "${version_file}" ]] || {
-  echo "Hashed build must include index.html and version.json" >&2
+favicon_file="${root}/favicon.ico"
+opengraph_file="${root}/opengraph.png"
+[[ -f "${index_file}" && -f "${version_file}" \
+  && -f "${favicon_file}" && -f "${opengraph_file}" ]] || {
+  echo "Build must include HTML, version, favicon, and Open Graph assets" >&2
   exit 1
 }
 
@@ -33,6 +36,15 @@ grep -Eq '/dist/app\.[0-9a-f]{12}\.js' "${index_file}" || {
 }
 grep -Eq '/dist/app\.[0-9a-f]{12}\.css' "${index_file}" || {
   echo "Hashed CSS entry is missing from index.html" >&2
+  exit 1
+}
+grep -Fq 'href="/favicon.ico"' "${index_file}" || {
+  echo "Favicon metadata is missing from index.html" >&2
+  exit 1
+}
+grep -Fq 'content="https://pulse.gleeze.com/opengraph.png"' \
+  "${index_file}" || {
+  echo "Open Graph image metadata is missing from index.html" >&2
   exit 1
 }
 [[ ! -e "${root}/dist/app.js" && ! -e "${root}/dist/app.css" ]] || {
