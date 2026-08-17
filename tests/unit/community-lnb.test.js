@@ -29,6 +29,7 @@ describe("Community LNB", () => {
       onFeed: vi.fn(),
       onCreate: vi.fn(),
       onBookmarks: vi.fn(),
+      onMyPage: vi.fn(),
       onProfile: vi.fn(),
       onPassword: vi.fn(),
       onLogout: vi.fn(),
@@ -56,6 +57,7 @@ describe("Community LNB", () => {
       "피드",
       "새로운 피드 작성",
       "북마크",
+      "마이페이지",
       "프로필 편집",
       "비밀번호 변경",
     ]);
@@ -109,6 +111,13 @@ describe("Community LNB", () => {
         "aria-pressed",
       ),
     ).toBe("true");
+
+    await renderLnb({ routeName: "profile" });
+    expect(
+      getByRole(container, "button", { name: "마이페이지" }).getAttribute(
+        "aria-current",
+      ),
+    ).toBe("page");
   });
 
   it("Navigation Callback과 실제 사용자 정보를 연결한다", async () => {
@@ -117,6 +126,7 @@ describe("Community LNB", () => {
       ["피드", callbacks.onFeed],
       ["새로운 피드 작성", callbacks.onCreate],
       ["북마크", callbacks.onBookmarks],
+      ["마이페이지", callbacks.onMyPage],
       ["프로필 편집", callbacks.onProfile],
       ["비밀번호 변경", callbacks.onPassword],
       ["로그아웃", callbacks.onLogout],
@@ -129,6 +139,12 @@ describe("Community LNB", () => {
     const nickname = container.querySelector(".lnb-user__identity strong");
     expect(nickname.textContent).toBe(user.nickname);
     expect(nickname.getAttribute("title")).toBe(user.nickname);
+    await act(() =>
+      fireEvent.click(
+        getByRole(container, "button", { name: "내 프로필 보기" }),
+      ),
+    );
+    expect(callbacks.onMyPage).toHaveBeenCalledTimes(2);
     expect(
       container.querySelector(".lnb-user .user-avatar").getAttribute("alt"),
     ).toBe(`${user.nickname} 프로필`);

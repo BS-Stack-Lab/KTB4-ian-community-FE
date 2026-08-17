@@ -3,6 +3,11 @@ import { httpClient } from "../../../shared/api/httpClient.js";
 export const postApi = {
   list: ({ page = 0, size = 10, ...options } = {}) =>
     httpClient(`/api/v2/posts?page=${page}&size=${size}`, options),
+  byUser: (userId, { page = 0, size = 10, ...options } = {}) =>
+    httpClient(
+      `/api/v2/users/${userId}/posts?page=${page}&size=${size}`,
+      options,
+    ),
   bookmarks: ({ page = 0, size = 10, ...options } = {}) =>
     httpClient(`/api/v2/posts/bookmarks?page=${page}&size=${size}`, options),
   detail: (postId, options) => httpClient(`/api/v2/posts/${postId}`, options),

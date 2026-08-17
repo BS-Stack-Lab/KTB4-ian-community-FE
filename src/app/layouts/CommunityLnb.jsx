@@ -32,12 +32,14 @@ export function CommunityLnb({
   onFeed,
   onCreate,
   onBookmarks,
+  onMyPage,
   onProfile,
   onPassword,
   onLogout,
 }) {
   const feedSelected = routeName === "feed" || routeName === "post";
   const bookmarkSelected = routeName === "bookmarks";
+  const profileSelected = routeName === "profile";
 
   return (
     <aside className="lnb" aria-label="주요 메뉴">
@@ -75,6 +77,13 @@ export function CommunityLnb({
             <nav className="lnb-navigation" aria-label="회원정보">
               <NavigationItem
                 icon="profile"
+                selected={profileSelected}
+                onClick={onMyPage}
+              >
+                마이페이지
+              </NavigationItem>
+              <NavigationItem
+                icon="profile"
                 modal
                 selected={profileOpen}
                 onClick={onProfile}
@@ -93,14 +102,19 @@ export function CommunityLnb({
           </section>
         </div>
         <div className="lnb-user">
-          <div className="lnb-user__identity">
+          <button
+            className="lnb-user__identity"
+            type="button"
+            aria-label="내 프로필 보기"
+            onClick={onMyPage}
+          >
             <UserAvatar
               profileImage={user.profileImage}
               profileMedia={user.profileMedia}
               nickname={user.nickname}
             />
             <strong title={user.nickname}>{user.nickname}</strong>
-          </div>
+          </button>
           <button className="lnb-user__logout" type="button" onClick={onLogout}>
             로그아웃
           </button>

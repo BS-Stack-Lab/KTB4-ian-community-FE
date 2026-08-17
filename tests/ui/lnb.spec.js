@@ -136,7 +136,7 @@ test("LNB는 Figma 위치·크기·간격과 원본 SVG를 사용한다", async 
   expect(metrics.logo).toMatchObject({ x: 500, y: 40, height: 31 });
   expect(metrics.logo.width).toBeCloseTo(107.732, 1);
   expect(metrics.main).toMatchObject({ x: 720, width: 480 });
-  expect(metrics.row).toMatchObject({ width: 180, height: 28 });
+  expect(metrics.row).toMatchObject({ width: 180, height: 30 });
   expect(metrics.rowGap).toBe("8px");
   expect(metrics.icon).toMatchObject({ width: 20, height: 20 });
   expect(metrics.selectedBackground).toBe("rgb(245, 245, 245)");

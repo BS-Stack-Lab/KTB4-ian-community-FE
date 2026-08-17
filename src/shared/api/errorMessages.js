@@ -16,6 +16,8 @@ const ERROR_MESSAGES = {
   EMAIL_ALREADY_EXISTS: "이미 사용 중인 이메일입니다.",
   NICKNAME_ALREADY_EXISTS: "이미 사용 중인 닉네임입니다.",
   USER_NOT_FOUND: "사용자를 찾을 수 없습니다.",
+  USER_ALREADY_DELETED: "탈퇴한 사용자입니다.",
+  SELF_FOLLOW_NOT_ALLOWED: "본인은 팔로우할 수 없습니다.",
   BOOKMARK_OPERATION_FAILED: "북마크 처리에 실패했습니다.",
   INVALID_POST_REQUEST: "게시글 정보를 확인해주세요.",
   INVALID_COMMENT_REQUEST: "댓글 정보를 확인해주세요.",

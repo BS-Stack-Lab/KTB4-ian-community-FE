@@ -13,6 +13,8 @@ import { CreatePostModal } from "../features/post/create/CreatePostModal.jsx";
 import { CommunityLnb } from "./layouts/CommunityLnb.jsx";
 import { AppLoadingScreen } from "../shared/ui/AppLoadingScreen.jsx";
 import { NotFoundPage } from "../pages/not-found/NotFoundPage.jsx";
+import { ProfilePage } from "../pages/profile/ProfilePage.jsx";
+import { sameUserId } from "./router/navigation.js";
 
 function Shell() {
   const auth = useAuth();
@@ -43,6 +45,15 @@ function Shell() {
     )
       navigate("/feed", { replace: true });
   }, [auth.status, route.name]);
+  useEffect(() => {
+    if (
+      auth.status === "authenticated" &&
+      route.name === "profile" &&
+      route.profileUserId != null &&
+      sameUserId(route.profileUserId, auth.user.userId)
+    )
+      navigate("/mypage", { replace: true });
+  }, [auth.status, auth.user?.userId, route.name, route.profileUserId]);
   if (auth.status === "initializing") return <AppLoadingScreen />;
   if (route.name === "login")
     return (
@@ -81,6 +92,7 @@ function Shell() {
         onFeed={() => navigate("/feed")}
         onCreate={() => setCreateOpen(true)}
         onBookmarks={() => navigate("/bookmarks")}
+        onMyPage={() => navigate("/mypage")}
         onProfile={() => setProfileOpen(true)}
         onPassword={() => setPasswordOpen(true)}
         onLogout={() => setConfirm("logout")}
@@ -105,10 +117,19 @@ function Shell() {
           }
         />
       ) : route.name === "bookmarks" ? (
-        <BookmarksPage
-          user={auth.user}
+        <BookmarksPage onNavigate={navigate} refreshKey={bookmarkRefreshKey} />
+      ) : route.name === "profile" ? (
+        <ProfilePage
+          profileUserId={route.profileUserId ?? auth.user.userId}
+          viewer={auth.user}
           onNavigate={navigate}
-          refreshKey={bookmarkRefreshKey}
+          onBack={() => {
+            if (history.length > 1) history.back();
+            else navigate("/feed");
+          }}
+          onBookmarksChanged={() =>
+            setBookmarkRefreshKey((current) => current + 1)
+          }
         />
       ) : (
         <NotFoundPage onFeed={() => navigate("/feed")} />
