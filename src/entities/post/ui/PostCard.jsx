@@ -18,6 +18,7 @@ export function PostCard({
   post,
   cardRef,
   onOpen,
+  onOpenAuthor,
   onLike,
   likePending = false,
   onBookmark,
@@ -54,14 +55,34 @@ export function PostCard({
         }}
       >
         <header className="post-card__header">
-          <span className="identity">
-            <UserAvatar
-              profileImage={post.author.profileImage}
-              profileMedia={post.author.profileMedia}
-              nickname={post.author.nickname}
-            />
-            <strong>{post.author.nickname}</strong>
-          </span>
+          {onOpenAuthor ? (
+            <button
+              className="identity post-card__author"
+              type="button"
+              aria-label={`${post.author.nickname} 프로필 보기`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenAuthor();
+              }}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <UserAvatar
+                profileImage={post.author.profileImage}
+                profileMedia={post.author.profileMedia}
+                nickname={post.author.nickname}
+              />
+              <strong>{post.author.nickname}</strong>
+            </button>
+          ) : (
+            <span className="identity">
+              <UserAvatar
+                profileImage={post.author.profileImage}
+                profileMedia={post.author.profileMedia}
+                nickname={post.author.nickname}
+              />
+              <strong>{post.author.nickname}</strong>
+            </span>
+          )}
           <span className="post-card__tools">
             <span className="post-card__metadata">
               조회 {formatCount(post.viewCount)}

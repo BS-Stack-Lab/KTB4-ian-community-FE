@@ -36,6 +36,12 @@ export const userApi = {
     }),
   profileMedia: (userId, options) =>
     httpClient(`/api/v2/users/${userId}/profile-image`, options),
+  profile: (userId, options) =>
+    httpClient(`/api/v2/users/${userId}/profile`, options),
+  follow: (userId) =>
+    httpClient(`/api/v2/users/${userId}/followers/me`, { method: "POST" }),
+  unfollow: (userId) =>
+    httpClient(`/api/v2/users/${userId}/followers/me`, { method: "DELETE" }),
   updatePassword: (userId, payload) =>
     httpClient(`/api/users/${userId}/password`, {
       method: "PATCH",

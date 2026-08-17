@@ -4,6 +4,7 @@ import { normalizeMedia } from "../../src/entities/media/model/mediaModel.js";
 import { postApi } from "../../src/entities/post/api/postApi.js";
 import { normalizePost } from "../../src/entities/post/model/normalizePost.js";
 import { userApi } from "../../src/entities/user/api/userApi.js";
+import { normalizeUserProfile } from "../../src/entities/user/model/normalizeUserProfile.js";
 import { resetHttpClientForTests } from "../../src/shared/api/httpClient.js";
 
 const readyMedia = {
@@ -267,5 +268,66 @@ describe("V2 mock API 계약", () => {
     expect(patchUrl).toBe("http://api.test/api/v2/users/7/profile-image");
     expect(patchOptions.method).toBe("PATCH");
     expect(JSON.parse(patchOptions.body)).toEqual({ mediaId: "media-v2" });
+  });
+
+  it("마이페이지 프로필·사용자별 피드·팔로우 계약을 사용한다", async () => {
+    const profile = {
+      userId: 24,
+      nickname: "dlkfjls",
+      followerCount: 23000,
+      followingCount: 24,
+      profileType: "OTHER_NOT_FOLLOWING",
+      countUpdatedAt: "2026-08-16T14:20:31",
+    };
+    globalThis.fetch = vi.fn((url, options = {}) => {
+      const path = new URL(url).pathname;
+      if (path === "/api/v2/users/24/profile") {
+        return Promise.resolve(json(profile));
+      }
+      if (path === "/api/v2/users/24/posts") {
+        return Promise.resolve(json({ content: [v2Post], hasNext: false }));
+      }
+      if (path === "/api/v2/users/24/followers/me") {
+        return Promise.resolve(
+          json({
+            targetUserId: 24,
+            profileType:
+              options.method === "POST"
+                ? "OTHER_FOLLOWING"
+                : "OTHER_NOT_FOLLOWING",
+          }),
+        );
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+
+    expect(normalizeUserProfile(await userApi.profile(24))).toMatchObject({
+      userId: 24,
+      profileType: "OTHER_NOT_FOLLOWING",
+      followerCount: 23000,
+    });
+    expect((await postApi.byUser(24)).content[0].postId).toBe(31);
+    expect((await userApi.follow(24)).profileType).toBe("OTHER_FOLLOWING");
+    expect((await userApi.unfollow(24)).profileType).toBe(
+      "OTHER_NOT_FOLLOWING",
+    );
+
+    const calls = fetch.mock.calls.map(([url, options = {}]) => ({
+      url,
+      method: options.method || "GET",
+      csrf: options.headers?.get("X-XSRF-TOKEN"),
+    }));
+    expect(calls.map(({ url }) => url)).toEqual([
+      "http://api.test/api/v2/users/24/profile",
+      "http://api.test/api/v2/users/24/posts?page=0&size=10",
+      "http://api.test/api/v2/users/24/followers/me",
+      "http://api.test/api/v2/users/24/followers/me",
+    ]);
+    expect(
+      calls.slice(2).map(({ method, csrf }) => ({ method, csrf })),
+    ).toEqual([
+      { method: "POST", csrf: "v2-mock" },
+      { method: "DELETE", csrf: "v2-mock" },
+    ]);
   });
 });

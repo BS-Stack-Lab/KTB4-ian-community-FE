@@ -35,6 +35,7 @@
     "test:mock:v1": "vitest run tests/integration/api-v1-mock.test.js tests/integration/feed-create-api.test.js tests/integration/feed-edit-api.test.js tests/integration/feed-delete-api.test.js tests/integration/comment-edit-api.test.js tests/integration/comment-delete-api.test.js tests/integration/profile-edit-api.test.js",
     "test:mock:v2": "vitest run tests/integration/api-v2-mock.test.js tests/unit/media-orchestrator.test.js tests/unit/media-normalization.test.js tests/unit/create-post-modal.test.js tests/unit/edit-post-modal.test.js tests/unit/feed-image-edit-modal.test.js",
     "test:ui": "playwright test",
+    "test:ui:mypage": "playwright test tests/ui/mypage.spec.js",
     "test:e2e:backend": "playwright test --config playwright.backend.config.js",
     "test:all": "npm run format:check && npm run build:react && npm run test:unit && npm run test:integration && npm run test:ui",
     "serve:test": "webpack serve --mode development"

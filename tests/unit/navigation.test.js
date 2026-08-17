@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { currentRoute, navigate } from "../../src/app/router/navigation.js";
+import {
+  currentRoute,
+  navigate,
+  profilePathFor,
+  sameUserId,
+} from "../../src/app/router/navigation.js";
 
 describe("SPA navigation", () => {
   afterEach(() => history.replaceState({}, "", "/"));
@@ -40,5 +45,23 @@ describe("SPA navigation", () => {
     history.replaceState({}, "", "/login");
 
     expect(currentRoute()).toEqual({ name: "login" });
+  });
+
+  it("내 마이페이지와 다른 사용자의 마이페이지 Route를 구분한다", () => {
+    history.replaceState({}, "", "/mypage");
+    expect(currentRoute()).toEqual({ name: "profile", profileUserId: null });
+
+    history.replaceState({}, "", "/users/24");
+    expect(currentRoute()).toEqual({ name: "profile", profileUserId: "24" });
+
+    history.replaceState({}, "", "/users/0");
+    expect(currentRoute()).toEqual({ name: "not-found" });
+  });
+
+  it("작성자 ID를 인증 사용자 기준 프로필 경로로 변환한다", () => {
+    expect(sameUserId("7", 7)).toBe(true);
+    expect(profilePathFor(7, "7")).toBe("/mypage");
+    expect(profilePathFor(24, 7)).toBe("/users/24");
+    expect(profilePathFor(null, 7)).toBeNull();
   });
 });

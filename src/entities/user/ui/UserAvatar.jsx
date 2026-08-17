@@ -29,6 +29,7 @@ export function UserAvatar({
       alt={`${nickname} 프로필`}
       width={size}
       height={size}
+      style={{ "--user-avatar-size": `${size}px` }}
       onError={(event) => {
         if (didFallback || source === fallback) {
           event.currentTarget.onerror = null;

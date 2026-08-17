@@ -25,6 +25,9 @@ export function currentRoute() {
     return { name: "feed" };
   if (path === "/bookmarks" || path.endsWith("/pages/bookmarks/bookmarks.html"))
     return { name: "bookmarks" };
+  if (path === "/mypage") return { name: "profile", profileUserId: null };
+  const profileMatch = path.match(/^\/users\/([1-9]\d*)$/);
+  if (profileMatch) return { name: "profile", profileUserId: profileMatch[1] };
   const match = path.match(/^\/posts\/(\d+)$/);
   if (match) return { name: "post", postId: match[1] };
   if (path.endsWith("/pages/post-detail/post-detail.html"))
@@ -33,4 +36,17 @@ export function currentRoute() {
       postId: new URLSearchParams(location.search).get("postId") || "1",
     };
   return { name: "not-found" };
+}
+
+export function sameUserId(left, right) {
+  if (left == null || right == null) return false;
+  return String(left) === String(right);
+}
+
+export function profilePathFor(authorUserId, viewerUserId) {
+  const normalized = String(authorUserId ?? "");
+  if (!/^[1-9]\d*$/.test(normalized)) return null;
+  return sameUserId(authorUserId, viewerUserId)
+    ? "/mypage"
+    : `/users/${normalized}`;
 }

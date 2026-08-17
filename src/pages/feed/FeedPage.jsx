@@ -13,6 +13,7 @@ import {
 import { useSkeletonReveal } from "../../shared/hooks/useSkeletonReveal.js";
 import { FeedPageSkeleton } from "./FeedPageSkeleton.jsx";
 import { Button } from "../../shared/ui/Button.jsx";
+import { profilePathFor } from "../../app/router/navigation.js";
 
 const PAGE_SIZE = 10;
 const PREFETCH_REMAINING = 5;
@@ -259,6 +260,10 @@ export function FeedPage({
                 post.author.userId === user.userId;
               const isPrefetchTarget =
                 hasNext && index === posts.length - PREFETCH_REMAINING;
+              const authorPath = profilePathFor(
+                post.author.userId,
+                user.userId,
+              );
 
               return (
                 <PostCard
@@ -266,6 +271,9 @@ export function FeedPage({
                   post={post}
                   cardRef={isPrefetchTarget ? loadMoreRef : undefined}
                   onOpen={() => onNavigate(`/posts/${post.postId}`)}
+                  onOpenAuthor={
+                    authorPath ? () => onNavigate(authorPath) : undefined
+                  }
                   onLike={() => like(post.postId)}
                   likePending={liking.has(post.postId)}
                   onBookmark={() => bookmark(post.postId)}

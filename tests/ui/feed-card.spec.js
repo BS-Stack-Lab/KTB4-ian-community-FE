@@ -15,7 +15,7 @@ const cors = {
   "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
 };
 
-async function prepare(page) {
+async function prepare(page, { otherProfileType = "OTHER_FOLLOWING" } = {}) {
   const consoleErrors = [];
   const failedAssets = [];
   page.on("console", (message) => {
@@ -76,7 +76,7 @@ async function prepare(page) {
               },
               {
                 post_id: 2,
-                user_id: 8,
+                user_id: 10,
                 content: "두 번째 피드",
                 nickname: "dlkfjls",
                 profile_image: "/images/author.svg",
@@ -89,6 +89,30 @@ async function prepare(page) {
             ],
           },
         },
+        headers: cors,
+      });
+    const profileMatch = url.pathname.match(
+      /^\/api\/v2\/users\/(7|10)\/profile$/,
+    );
+    if (profileMatch) {
+      const profileUserId = Number(profileMatch[1]);
+      return route.fulfill({
+        json: {
+          data: {
+            userId: profileUserId,
+            nickname: profileUserId === 7 ? "현재 사용자" : "dlkfjls",
+            legacyProfileImageUrl: "/images/author.svg",
+            followerCount: 23_000,
+            followingCount: 24,
+            profileType: profileUserId === 7 ? "SELF" : otherProfileType,
+          },
+        },
+        headers: cors,
+      });
+    }
+    if (/^\/api\/v2\/users\/(7|10)\/posts$/.test(url.pathname))
+      return route.fulfill({
+        json: { data: { content: [], hasNext: false } },
         headers: cors,
       });
     if (url.pathname === "/images/feed-landscape.jpeg")
@@ -181,9 +205,9 @@ test("Feed Card는 Figma 크기·간격·타이포그래피를 사용한다", as
   expect(metrics.borderTop).toBe("1px solid rgb(229, 229, 229)");
   expect(metrics.radius).toBe("0px");
   expect(metrics.contentTypography).toEqual({
-    fontSize: "12px",
+    fontSize: "15px",
     fontWeight: "400",
-    lineHeight: "18px",
+    lineHeight: "24px",
   });
   expect(metrics.metadataColor).toBe("rgb(161, 161, 161)");
   expect(metrics.likeWidths).toEqual([60, 60]);
@@ -335,8 +359,8 @@ test("내 글은 하단 더보기 메뉴를, 타인 글은 기존 북마크를 �
   ).toBe("rgb(245, 245, 245)");
   const optionBox = await ownerOptions.boundingBox();
   expect(optionBox).toMatchObject({ x: 1144, width: 36, height: 36 });
-  expect(optionBox.y).toBeGreaterThanOrEqual(569);
-  expect(optionBox.y).toBeLessThanOrEqual(570);
+  expect(optionBox.y).toBeGreaterThanOrEqual(605);
+  expect(optionBox.y).toBeLessThanOrEqual(606);
   const optionCenters = await ownerOptions.evaluate((button) => {
     const icon = button.querySelector("img");
     const buttonRect = button.getBoundingClientRect();
@@ -366,8 +390,8 @@ test("내 글은 하단 더보기 메뉴를, 타인 글은 기존 북마크를 �
   ]);
   const menuBox = await menu.boundingBox();
   expect(menuBox).toMatchObject({ x: 1020, width: 160, height: 112 });
-  expect(menuBox.y).toBeGreaterThanOrEqual(605);
-  expect(menuBox.y).toBeLessThanOrEqual(607);
+  expect(menuBox.y).toBeGreaterThanOrEqual(641);
+  expect(menuBox.y).toBeLessThanOrEqual(643);
   await ownerOptions.click();
   await expect(menu).toHaveCount(0);
   await expect(ownerOptions).toHaveAttribute("aria-expanded", "false");
@@ -383,6 +407,46 @@ test("내 글은 하단 더보기 메뉴를, 타인 글은 기존 북마크를 �
   await ownerCard.getByRole("menuitem", { name: "저장하기" }).click();
   await expect(ownerCard.getByRole("menu")).toHaveCount(0);
   await expect(ownerOptions).toBeFocused();
+});
+
+test("피드 프로필 이미지는 작성자 마이페이지로 이동한다", async ({ page }) => {
+  await prepare(page);
+  await page.goto("/feed");
+  await waitForStableFeed(page);
+
+  const cards = page.locator(".post-card");
+
+  await cards.nth(0).locator(".post-card__author .user-avatar").click();
+  await expect(page).toHaveURL(/\/mypage$/);
+
+  await page.goto("/feed");
+  await waitForStableFeed(page);
+  await cards.nth(1).locator(".post-card__author .user-avatar").click();
+  await expect(page).toHaveURL(/\/users\/10$/);
+  await expect(page.getByRole("button", { name: "팔로잉" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});
+
+test("팔로우하지 않은 피드 작성자는 NotFollowing 마이페이지를 표시한다", async ({
+  page,
+}) => {
+  await prepare(page, { otherProfileType: "OTHER_NOT_FOLLOWING" });
+  await page.goto("/feed");
+  await waitForStableFeed(page);
+
+  await page
+    .locator(".post-card")
+    .nth(1)
+    .locator(".post-card__author .user-avatar")
+    .click();
+
+  await expect(page).toHaveURL(/\/users\/10$/);
+  await expect(page.getByRole("button", { name: "팔로우" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
 });
 
 test("피드 더보기 메뉴는 아래 공간이 부족하면 위로 열린다", async ({
