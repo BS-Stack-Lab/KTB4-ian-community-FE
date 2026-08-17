@@ -22,11 +22,11 @@ test("실제 Backend에서 Bookmark와 10개 Slice를 화면 전체 흐름으로
     await page.getByLabel("피드 본문").fill(content);
     const createResponse = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname === "/api/v2/posts/me" &&
+        new URL(response.url()).pathname === "/api/v2/posts/me/async-media" &&
         response.request().method() === "POST",
     );
     await page.getByRole("button", { name: "피드 게시", exact: true }).click();
-    expect((await createResponse).status()).toBe(201);
+    expect((await createResponse).status()).toBe(202);
     await expect(page.getByRole("dialog", { name: "피드 생성" })).toBeHidden();
     await expect(
       page.getByRole("article").filter({
