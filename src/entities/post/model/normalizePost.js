@@ -6,6 +6,21 @@ import {
 
 export function normalizePost(raw = {}) {
   const media = (raw.media || []).map(normalizeMedia).filter(Boolean);
+  const mediaAttachments = (raw.mediaAttachments || raw.media_attachments || [])
+    .map((attachment) => ({
+      displayOrder:
+        attachment.order ??
+        attachment.displayOrder ??
+        attachment.display_order ??
+        0,
+      state: attachment.state || "READY",
+      media: normalizeMedia(attachment.activeMedia ?? attachment.media),
+      pendingMediaId:
+        attachment.pendingMediaId ?? attachment.pending_media_id ?? null,
+      errorCode: attachment.errorCode ?? attachment.error_code ?? null,
+      pendingFrame: attachment.pendingFrame ?? attachment.pending_frame ?? null,
+    }))
+    .sort((left, right) => left.displayOrder - right.displayOrder);
   const mediaImage = preferredVariant(media[0], 448)?.url;
   return {
     postId: raw.postId ?? raw.post_id,
@@ -18,6 +33,13 @@ export function normalizePost(raw = {}) {
       raw.image_url ??
       null,
     media,
+    mediaAttachments,
+    mediaProcessing: mediaAttachments.some(
+      (attachment) => attachment.state === "PROCESSING",
+    ),
+    mediaFailed: mediaAttachments.some(
+      (attachment) => attachment.state === "FAILED",
+    ),
     author: normalizeUser(raw.author ?? raw),
     likeCount: raw.likeCount ?? raw.like_count ?? 0,
     commentCount:

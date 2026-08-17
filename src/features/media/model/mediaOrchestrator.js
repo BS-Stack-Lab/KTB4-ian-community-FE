@@ -4,6 +4,19 @@ import { mediaApi } from "../../../entities/media/api/mediaApi.js";
 const READY = "READY";
 const FAILED = "FAILED";
 
+export function createMediaOperationId() {
+  return (
+    globalThis.crypto?.randomUUID?.() ||
+    `media-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  );
+}
+
+function uploadContentType(file) {
+  return file.type === "image/x-ms-bmp" || /\.bmp$/i.test(file.name)
+    ? "image/bmp"
+    : file.type;
+}
+
 export async function pollMedia(
   mediaId,
   {
@@ -95,7 +108,7 @@ export async function uploadMedia(file, edit, { signal } = {}) {
       {
         purpose: edit.purpose,
         fileName: file.name,
-        contentType: file.type,
+        contentType: uploadContentType(file),
         fileSize: file.size,
         frame: edit.frame,
         rotation: edit.rotation,
@@ -105,6 +118,7 @@ export async function uploadMedia(file, edit, { signal } = {}) {
           x: edit.crop.x + edit.crop.width / 2,
           y: edit.crop.y + edit.crop.height / 2,
         },
+        operationId: edit.operationId,
       },
       { signal },
     );
@@ -124,6 +138,42 @@ export async function uploadMedia(file, edit, { signal } = {}) {
   }
 }
 
+export async function uploadMediaWithoutWaiting(file, edit, { signal } = {}) {
+  let mediaId = null;
+  try {
+    const initiated = await mediaApi.initiate(
+      {
+        purpose: edit.purpose,
+        fileName: file.name,
+        contentType: uploadContentType(file),
+        fileSize: file.size,
+        frame: edit.frame,
+        rotation: edit.rotation,
+        crop: edit.crop,
+        zoom: edit.zoom ?? 1,
+        position: edit.position ?? {
+          x: edit.crop.x + edit.crop.width / 2,
+          y: edit.crop.y + edit.crop.height / 2,
+        },
+        operationId: edit.operationId,
+      },
+      { signal },
+    );
+    mediaId = initiated.mediaId;
+    await mediaApi.uploadToPresignedPost(file, initiated.upload, signal);
+    const completed = await mediaApi.complete(mediaId, { signal });
+    if (completed.status === FAILED) {
+      throw new ApiError("이미지 처리에 실패했습니다.", {
+        code: completed.errorCode || "MEDIA_PROCESSING_FAILED",
+      });
+    }
+    return completed;
+  } catch (cause) {
+    cause.mediaId = mediaId;
+    throw cause;
+  }
+}
+
 export async function prepareRevision(mediaId, edit, { signal } = {}) {
   let revision = null;
   try {
@@ -134,6 +184,7 @@ export async function prepareRevision(mediaId, edit, { signal } = {}) {
         crop: edit.crop,
         zoom: edit.zoom,
         position: edit.position,
+        operationId: edit.operationId,
       },
       { signal },
     );
@@ -145,6 +196,38 @@ export async function prepareRevision(mediaId, edit, { signal } = {}) {
       });
     }
     return await pollRevision(mediaId, revision, { signal });
+  } catch (cause) {
+    cause.mediaId = mediaId;
+    cause.revision = revision;
+    throw cause;
+  }
+}
+
+export async function prepareRevisionWithoutWaiting(
+  mediaId,
+  edit,
+  { signal } = {},
+) {
+  let revision = null;
+  try {
+    const created = await mediaApi.createRevision(
+      mediaId,
+      {
+        frame: edit.frame,
+        crop: edit.crop,
+        zoom: edit.zoom,
+        position: edit.position,
+        operationId: edit.operationId,
+      },
+      { signal },
+    );
+    revision = created.revision;
+    if (created.status === FAILED) {
+      throw new ApiError("이미지 편집 처리에 실패했습니다.", {
+        code: created.errorCode || "MEDIA_REVISION_PROCESSING_FAILED",
+      });
+    }
+    return created;
   } catch (cause) {
     cause.mediaId = mediaId;
     cause.revision = revision;

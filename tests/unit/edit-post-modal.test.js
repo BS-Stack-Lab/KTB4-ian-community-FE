@@ -135,7 +135,7 @@ describe("피드 수정 Modal", () => {
     );
   });
 
-  it("기존 V2 이미지는 새 Revision READY 후 피드 저장 시 활성화한다", async () => {
+  it("기존 V2 이미지는 Revision 요청 후 대기 없이 피드에 연결한다", async () => {
     vi.spyOn(mediaApi, "editSource").mockResolvedValue({
       mediaId: "media-original",
       url: "https://private.example/master.webp",
@@ -150,17 +150,10 @@ describe("피드 수정 Modal", () => {
     vi.spyOn(mediaApi, "createRevision").mockResolvedValue({
       mediaId: "media-original",
       revision: 2,
-      status: "READY",
-      variants: [
-        {
-          type: "POST_LANDSCAPE_3X",
-          url: "https://cdn.example/revision-2.webp",
-          width: 1344,
-          height: 864,
-        },
-      ],
+      status: "PROCESSING",
+      variants: [],
     });
-    vi.spyOn(postApi, "updateV2").mockResolvedValue();
+    vi.spyOn(postApi, "updateAsyncMedia").mockResolvedValue();
     await renderModal(v2Post);
 
     await act(async () =>
@@ -189,52 +182,17 @@ describe("피드 수정 Modal", () => {
     expect(submit.disabled).toBe(false);
     await act(async () => fireEvent.click(submit));
 
-    expect(postApi.updateV2).toHaveBeenCalledWith(31, {
+    expect(postApi.updateAsyncMedia).toHaveBeenCalledWith(31, {
       content: "기존 본문",
       mediaIds: ["media-original"],
-      revisionActivations: [{ mediaId: "media-original", revision: 2 }],
+      revisionTargets: [
+        {
+          mediaId: "media-original",
+          revision: 2,
+          operationId: expect.any(String),
+        },
+      ],
     });
-  });
-
-  it("이미지 처리를 기다리지 않고 수정 Modal로 복귀하고 READY 전 저장을 막는다", async () => {
-    let finishProcessing;
-    mediaApi.complete.mockReturnValueOnce(
-      new Promise((resolve) => {
-        finishProcessing = resolve;
-      }),
-    );
-    await renderModal();
-    const file = new File(["image"], "changed.png", { type: "image/png" });
-    await act(async () =>
-      fireEvent.change(document.querySelector('input[type="file"]'), {
-        target: { files: [file] },
-      }),
-    );
-
-    act(() =>
-      fireEvent.click(document.querySelector('[aria-label="이미지 첨부"]')),
-    );
-
-    expect(document.querySelector('[aria-label="피드 수정"]')).not.toBeNull();
-    expect(document.body.textContent).toContain("이미지 처리 중");
-    expect(document.querySelector('[aria-label="피드 수정"]').disabled).toBe(
-      true,
-    );
-    await vi.waitFor(() => expect(finishProcessing).toBeTypeOf("function"));
-
-    await act(async () =>
-      finishProcessing({
-        mediaId: "media-new",
-        status: "READY",
-        variants: [],
-      }),
-    );
-    await vi.waitFor(() =>
-      expect(document.body.textContent).not.toContain("이미지 처리 중"),
-    );
-    expect(document.querySelector('[aria-label="피드 수정"]').disabled).toBe(
-      false,
-    );
   });
 
   it("본문 저장 실패 시 입력과 기존 이미지를 유지한다", async () => {

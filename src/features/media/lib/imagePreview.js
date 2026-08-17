@@ -10,34 +10,22 @@ function objectUrlPreview(file) {
 export async function createOrientedPreview(file) {
   if (typeof createImageBitmap !== "function") return objectUrlPreview(file);
 
+  const url = URL.createObjectURL(file);
   const bitmap = await createImageBitmap(file, {
     imageOrientation: "from-image",
   });
   try {
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const context = canvas.getContext("2d");
-    if (!context || typeof canvas.toBlob !== "function") {
-      return objectUrlPreview(file);
-    }
-    context.drawImage(bitmap, 0, 0);
-    const blob = await new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (value) =>
-          value
-            ? resolve(value)
-            : reject(new Error("미리보기를 만들 수 없습니다.")),
-        "image/webp",
-        0.9,
-      );
-    });
     return {
-      url: URL.createObjectURL(blob),
+      // Keep the browser preview pointed at the upload bytes. The bitmap is decoded
+      // only to inspect the EXIF-oriented dimensions; no resize or re-encoding occurs.
+      url,
       width: bitmap.width,
       height: bitmap.height,
       revoke() {},
     };
+  } catch (cause) {
+    URL.revokeObjectURL(url);
+    throw cause;
   } finally {
     bitmap.close();
   }

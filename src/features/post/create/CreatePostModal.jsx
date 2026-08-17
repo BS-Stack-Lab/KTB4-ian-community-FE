@@ -18,7 +18,10 @@ import {
   frameAspect,
   initialPostFrame,
 } from "../../media/lib/imagePreview.js";
-import { uploadMedia } from "../../media/model/mediaOrchestrator.js";
+import {
+  createMediaOperationId,
+  uploadMediaWithoutWaiting,
+} from "../../media/model/mediaOrchestrator.js";
 import { FeedImageEditModal } from "../../media/ui/FeedImageEditModal.jsx";
 
 function previewUrl(attachment) {
@@ -147,60 +150,25 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
 
   async function attachImage(edit) {
     if (!draft?.file || editorPending) return;
-    const controller = new AbortController();
-    const processingDraft = draft;
-    const previous = attachment;
-    const optimistic = {
-      file: processingDraft.file,
-      preview: processingDraft.preview,
-      edit,
-      media: null,
-      processing: true,
-      previous,
-    };
-    editorAbortRef.current = controller;
-    setEditorPending(true);
     setEditorError("");
     discardMedia(failedMediaId);
     setFailedMediaId(null);
-    setAttachment(optimistic);
-    setEditorOpen(false);
-    try {
-      const media = await uploadMedia(processingDraft.file, edit, {
-        signal: controller.signal,
+    const previous = attachment;
+    const next = {
+      file: draft.file,
+      preview: draft.preview,
+      edit,
+      operationId: createMediaOperationId(),
+      media: null,
+    };
+    setAttachment(next);
+    if (previous && previous !== next) {
+      discardAttachment(previous, {
+        revoke: previous.preview?.url !== draft.preview?.url,
       });
-      if (controller.signal.aborted) {
-        discardMedia(media.mediaId);
-        return;
-      }
-      const next = {
-        file: processingDraft.file,
-        preview: processingDraft.preview,
-        edit,
-        media,
-      };
-      setAttachment(next);
-      if (previous && previous !== next) {
-        discardAttachment(previous, {
-          revoke: previous.preview?.url !== processingDraft.preview?.url,
-        });
-      }
-      setDraft(null);
-    } catch (cause) {
-      if (cause?.name === "AbortError" || controller.signal.aborted) {
-        discardMedia(cause.mediaId);
-      } else {
-        setAttachment(previous);
-        setFailedMediaId(cause.mediaId || null);
-        setEditorError(cause.message || "이미지를 처리할 수 없습니다.");
-        setEditorOpen(true);
-      }
-    } finally {
-      if (editorAbortRef.current === controller) {
-        editorAbortRef.current = null;
-        setEditorPending(false);
-      }
     }
+    setDraft(null);
+    setEditorOpen(false);
   }
 
   function removeImage() {
@@ -253,9 +221,19 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
     setPending(true);
     setError("");
     try {
-      await postApi.createV2({
+      let media = attachment?.media || null;
+      if (attachment && !media) {
+        editorAbortRef.current = new AbortController();
+        media = await uploadMediaWithoutWaiting(
+          attachment.file,
+          { ...attachment.edit, operationId: attachment.operationId },
+          { signal: editorAbortRef.current.signal },
+        );
+        setAttachment((current) => (current ? { ...current, media } : current));
+      }
+      await postApi.createAsyncMedia({
         content: content.trim(),
-        mediaIds: attachment?.media ? [attachment.media.mediaId] : [],
+        mediaIds: media ? [media.mediaId] : [],
       });
       if (attachment?.preview?.url) URL.revokeObjectURL(attachment.preview.url);
       setAttachment(null);
@@ -265,6 +243,7 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
     } catch (cause) {
       setError(cause.message);
     } finally {
+      editorAbortRef.current = null;
       pendingRef.current = false;
       setPending(false);
     }
@@ -350,7 +329,7 @@ export function CreatePostModal({ open, onClose, user, onCreated }) {
             <input
               ref={inputRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/jpeg,image/png,image/webp,image/bmp,.jpg,.jpeg,.png,.webp,.bmp"
               onChange={choose}
               disabled={pending || editorPending}
             />
