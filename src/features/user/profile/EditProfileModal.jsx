@@ -162,7 +162,7 @@ export function EditProfileModal({
           <input
             ref={inputRef}
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept="image/jpeg,image/png,image/webp,image/bmp,.jpg,.jpeg,.png,.webp,.bmp"
             onChange={choose}
             disabled={pending}
           />

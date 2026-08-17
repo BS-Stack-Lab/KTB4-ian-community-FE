@@ -88,4 +88,33 @@ describe("FeedImageEdit Figma Modal", () => {
       }),
     );
   });
+
+  it("가로와 세로 프레임을 선택하고 저해상도 경고를 토스트로 알린다", async () => {
+    const onAttach = vi.fn();
+    await act(() =>
+      root.render(
+        createElement(FeedImageEditModal, {
+          open: true,
+          source: "data:image/png;base64,AA==",
+          width: 320,
+          height: 240,
+          frame: "POST_LANDSCAPE",
+          onCancel: vi.fn(),
+          onAttach,
+        }),
+      ),
+    );
+    const portrait = document.querySelector('[role="radio"]:last-child');
+    await act(() => fireEvent.click(portrait));
+    expect(portrait.getAttribute("aria-checked")).toBe("true");
+    await act(() =>
+      fireEvent.click(document.querySelector('[aria-label="이미지 첨부"]')),
+    );
+    expect(onAttach).toHaveBeenCalledWith(
+      expect.objectContaining({ frame: "POST_PORTRAIT" }),
+    );
+    expect(document.querySelector('[role="status"]').textContent).toContain(
+      "해상도가 낮아",
+    );
+  });
 });

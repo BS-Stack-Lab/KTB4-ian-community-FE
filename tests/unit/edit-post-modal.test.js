@@ -135,7 +135,7 @@ describe("피드 수정 Modal", () => {
     );
   });
 
-  it("기존 V2 이미지는 새 Revision READY 후 피드 저장 시 활성화한다", async () => {
+  it("기존 V2 이미지는 Revision 요청 후 대기 없이 피드에 연결한다", async () => {
     vi.spyOn(mediaApi, "editSource").mockResolvedValue({
       mediaId: "media-original",
       url: "https://private.example/master.webp",
@@ -150,17 +150,10 @@ describe("피드 수정 Modal", () => {
     vi.spyOn(mediaApi, "createRevision").mockResolvedValue({
       mediaId: "media-original",
       revision: 2,
-      status: "READY",
-      variants: [
-        {
-          type: "POST_LANDSCAPE_1X",
-          url: "https://cdn.example/revision-2.webp",
-          width: 448,
-          height: 288,
-        },
-      ],
+      status: "PROCESSING",
+      variants: [],
     });
-    vi.spyOn(postApi, "updateV2").mockResolvedValue();
+    vi.spyOn(postApi, "updateAsyncMedia").mockResolvedValue();
     await renderModal(v2Post);
 
     await act(async () =>
@@ -189,10 +182,16 @@ describe("피드 수정 Modal", () => {
     expect(submit.disabled).toBe(false);
     await act(async () => fireEvent.click(submit));
 
-    expect(postApi.updateV2).toHaveBeenCalledWith(31, {
+    expect(postApi.updateAsyncMedia).toHaveBeenCalledWith(31, {
       content: "기존 본문",
       mediaIds: ["media-original"],
-      revisionActivations: [{ mediaId: "media-original", revision: 2 }],
+      revisionTargets: [
+        {
+          mediaId: "media-original",
+          revision: 2,
+          operationId: expect.any(String),
+        },
+      ],
     });
   });
 

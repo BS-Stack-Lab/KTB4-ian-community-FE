@@ -40,7 +40,7 @@ describe("Feed Card", () => {
     const body = container.querySelector(".post-card__body");
     expect([...body.children].map((node) => node.tagName)).toEqual([
       "HEADER",
-      "IMG",
+      "DIV",
       "P",
     ]);
     expect(

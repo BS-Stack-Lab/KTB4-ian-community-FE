@@ -20,6 +20,7 @@ import {
   frameAspect,
   normalizedCrop,
 } from "../lib/imagePreview.js";
+import { imageCropQuality, QUALITY_MESSAGES } from "../lib/imageQuality.js";
 
 const clampZoom = (value) => Math.min(Math.max(Number(value) || 1, 1), 3);
 
@@ -49,18 +50,23 @@ export function FeedImageEditModal({
   onCancel,
   onAttach,
 }) {
+  const [selectedFrame, setSelectedFrame] = useState(frame);
   const defaultCrop = useMemo(
-    () => defaultNormalizedCrop(width, height, frameAspect(frame)),
-    [frame, height, width],
+    () => defaultNormalizedCrop(width, height, frameAspect(selectedFrame)),
+    [height, selectedFrame, width],
   );
   const minimumCropperZoom = useMemo(() => {
-    if (frame !== "POST_LANDSCAPE" || !Number(width) || !Number(height)) {
+    if (
+      selectedFrame !== "POST_LANDSCAPE" ||
+      !Number(width) ||
+      !Number(height)
+    ) {
       return 1;
     }
     const sourceAspect = Number(width) / Number(height);
-    const targetAspect = frameAspect(frame);
+    const targetAspect = frameAspect(selectedFrame);
     return Math.max(sourceAspect / targetAspect, targetAspect / sourceAspect);
-  }, [frame, height, width]);
+  }, [height, selectedFrame, width]);
   const [cropPosition, setCropPosition] = useState({ x: 0, y: 0 });
   const [cropArea, setCropArea] = useState(initialEdit?.crop || defaultCrop);
   const [zoom, setZoom] = useState(clampZoom(initialEdit?.zoom));
@@ -69,6 +75,10 @@ export function FeedImageEditModal({
   );
   const [resetVersion, setResetVersion] = useState(0);
   const [cropSize, setCropSize] = useState(null);
+  const [toast, setToast] = useState("");
+  const lastWarningRef = useRef({ message: "", at: 0 });
+  const previousQualityRef = useRef("GOOD");
+  const toastTimerRef = useRef(null);
   const viewportRef = useRef(null);
   const restoredCropPercentages = useMemo(
     () =>
@@ -78,22 +88,32 @@ export function FeedImageEditModal({
     [defaultCrop, initialEdit],
   );
 
-  const restore = useCallback(() => {
-    const nextCrop = initialEdit?.crop || defaultCrop;
-    setCropPosition({ x: 0, y: 0 });
-    setCropArea(nextCrop);
-    const restoredZoom = clampZoom(initialEdit?.zoom);
-    setZoom(restoredZoom);
-    setCropperZoom(minimumCropperZoom * restoredZoom);
-    setResetVersion((value) => value + 1);
-  }, [defaultCrop, initialEdit, minimumCropperZoom]);
-
   useEffect(() => {
-    if (open) restore();
-  }, [open, restore, source]);
+    if (open) {
+      const initialFrame = initialEdit?.frame || frame;
+      const nextCrop =
+        initialEdit?.crop ||
+        defaultNormalizedCrop(width, height, frameAspect(initialFrame));
+      const sourceAspect = Number(width) / Number(height);
+      const targetAspect = frameAspect(initialFrame);
+      const initialMinimumZoom =
+        initialFrame === "POST_LANDSCAPE" && sourceAspect
+          ? Math.max(sourceAspect / targetAspect, targetAspect / sourceAspect)
+          : 1;
+      const restoredZoom = clampZoom(initialEdit?.zoom);
+      previousQualityRef.current = "GOOD";
+      lastWarningRef.current = { message: "", at: 0 };
+      setSelectedFrame(initialFrame);
+      setCropPosition({ x: 0, y: 0 });
+      setCropArea(nextCrop);
+      setZoom(restoredZoom);
+      setCropperZoom(initialMinimumZoom * restoredZoom);
+      setResetVersion((value) => value + 1);
+    }
+  }, [frame, height, initialEdit, open, source, width]);
 
   useLayoutEffect(() => {
-    if (!open || frame !== "POST_LANDSCAPE" || !viewportRef.current) {
+    if (!open || selectedFrame !== "POST_LANDSCAPE" || !viewportRef.current) {
       setCropSize(null);
       return undefined;
     }
@@ -109,13 +129,79 @@ export function FeedImageEditModal({
     const observer = new ResizeObserver(measure);
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, [frame, open]);
+  }, [open, selectedFrame]);
+
+  const quality = useMemo(
+    () =>
+      imageCropQuality({
+        width,
+        height,
+        crop: cropArea,
+        frame: selectedFrame,
+      }),
+    [cropArea, height, selectedFrame, width],
+  );
+
+  const showQualityToast = useCallback((level) => {
+    const message = QUALITY_MESSAGES[level];
+    if (!message) return;
+    const now = Date.now();
+    if (
+      lastWarningRef.current.message === message &&
+      now - lastWarningRef.current.at < 5_000
+    ) {
+      return;
+    }
+    lastWarningRef.current = { message, at: now };
+    setToast(message);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(""), 4_000);
+  }, []);
+
+  useEffect(() => {
+    if (
+      open &&
+      previousQualityRef.current === "GOOD" &&
+      quality.level !== "GOOD"
+    ) {
+      showQualityToast(quality.level);
+    }
+    previousQualityRef.current = quality.level;
+  }, [open, quality.level, showQualityToast]);
+
+  useEffect(
+    () => () => {
+      clearTimeout(toastTimerRef.current);
+    },
+    [],
+  );
 
   const reset = () => {
     setCropPosition({ x: 0, y: 0 });
     setCropArea(defaultCrop);
     setZoom(1);
     setCropperZoom(minimumCropperZoom);
+    setResetVersion((value) => value + 1);
+  };
+
+  const selectFrame = (nextFrame) => {
+    if (pending || nextFrame === selectedFrame) return;
+    const nextCrop = defaultNormalizedCrop(
+      width,
+      height,
+      frameAspect(nextFrame),
+    );
+    const sourceAspect = Number(width) / Number(height);
+    const targetAspect = frameAspect(nextFrame);
+    const nextMinimumZoom =
+      nextFrame === "POST_LANDSCAPE" && sourceAspect
+        ? Math.max(sourceAspect / targetAspect, targetAspect / sourceAspect)
+        : 1;
+    setSelectedFrame(nextFrame);
+    setCropPosition({ x: 0, y: 0 });
+    setCropArea(nextCrop);
+    setZoom(1);
+    setCropperZoom(nextMinimumZoom);
     setResetVersion((value) => value + 1);
   };
 
@@ -141,18 +227,41 @@ export function FeedImageEditModal({
       </header>
       <section className="feed-image-edit-modal__body">
         <div
+          className="feed-image-edit-modal__frames"
+          role="radiogroup"
+          aria-label="게시 이미지 비율"
+        >
+          {[
+            ["POST_LANDSCAPE", "가로"],
+            ["POST_PORTRAIT", "세로"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={selectedFrame === value}
+              className={selectedFrame === value ? "is-selected" : ""}
+              onClick={() => selectFrame(value)}
+              disabled={pending}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div
           ref={viewportRef}
           className="feed-image-edit-modal__viewport"
+          data-frame={selectedFrame}
           aria-label="이미지 확대 및 위치 편집"
         >
-          {source && (frame !== "POST_LANDSCAPE" || cropSize) && (
+          {source && (selectedFrame !== "POST_LANDSCAPE" || cropSize) && (
             <Cropper
               key={`${source}-${resetVersion}`}
               image={source}
               crop={cropPosition}
               zoom={cropperZoom}
               rotation={0}
-              aspect={frameAspect(frame)}
+              aspect={frameAspect(selectedFrame)}
               cropSize={cropSize || undefined}
               initialCroppedAreaPercentages={restoredCropPercentages}
               onCropChange={setCropPosition}
@@ -205,6 +314,23 @@ export function FeedImageEditModal({
             {error}
           </p>
         )}
+        {toast && (
+          <div
+            className="feed-image-quality-toast"
+            role="status"
+            aria-live="polite"
+          >
+            <span aria-hidden="true">!</span>
+            <p>{toast}</p>
+            <button
+              type="button"
+              aria-label="화질 경고 닫기"
+              onClick={() => setToast("")}
+            >
+              ×
+            </button>
+          </div>
+        )}
       </section>
       <footer className="feed-image-edit-modal__footer">
         <div>
@@ -224,16 +350,17 @@ export function FeedImageEditModal({
             className="feed-image-edit-modal__attach"
             type="button"
             aria-label={pending ? "이미지 처리 중" : "이미지 첨부"}
-            onClick={() =>
+            onClick={() => {
+              if (quality.level !== "GOOD") showQualityToast(quality.level);
               onAttach?.({
                 purpose: "POST",
-                frame,
+                frame: selectedFrame,
                 rotation: 0,
                 crop: cropArea,
                 zoom,
                 position: cropCenter(cropArea),
-              })
-            }
+              });
+            }}
             disabled={pending || !source}
           >
             <img src={directionTopIcon} alt="" />

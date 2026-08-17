@@ -18,8 +18,9 @@ import {
   initialPostFrame,
 } from "../../media/lib/imagePreview.js";
 import {
-  prepareRevision,
-  uploadMedia,
+  createMediaOperationId,
+  prepareRevisionWithoutWaiting,
+  uploadMediaWithoutWaiting,
 } from "../../media/model/mediaOrchestrator.js";
 import { FeedImageEditModal } from "../../media/ui/FeedImageEditModal.jsx";
 
@@ -42,7 +43,10 @@ function attachmentUrl(attachment) {
     );
   }
   if (attachment.kind === "revision") {
-    return apiAssetUrl(preferredVariant(attachment.response, 448)?.url, null);
+    return apiAssetUrl(
+      preferredVariant(attachment.response, 448)?.url || attachment.previewUrl,
+      null,
+    );
   }
   if (attachment.kind === "original-v2") {
     return apiAssetUrl(preferredVariant(attachment.media, 448)?.url, null);
@@ -132,13 +136,16 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
 
   function discardPrepared(value, { revoke = true } = {}) {
     if (value?.kind === "new") {
-      mediaApi.cancel(value.media.mediaId).catch(() => {});
+      if (value.media?.mediaId)
+        mediaApi.cancel(value.media.mediaId).catch(() => {});
       if (revoke && value.preview?.url) URL.revokeObjectURL(value.preview.url);
     }
     if (value?.kind === "revision") {
-      mediaApi
-        .cancelRevision(value.mediaId, value.response.revision)
-        .catch(() => {});
+      if (value.response?.revision) {
+        mediaApi
+          .cancelRevision(value.mediaId, value.response.revision)
+          .catch(() => {});
+      }
     }
   }
 
@@ -262,52 +269,32 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
     if (!draft || editorPending) return;
     discardFailed();
     setFailedDraft(null);
-    editorAbortRef.current = new AbortController();
-    setEditorPending(true);
     setEditorError("");
-    try {
-      let next;
-      if (draft.kind === "revision") {
-        const response = await prepareRevision(draft.mediaId, edit, {
-          signal: editorAbortRef.current.signal,
-        });
-        next = {
-          kind: "revision",
-          mediaId: draft.mediaId,
-          response,
-          edit,
-        };
-      } else {
-        const media = await uploadMedia(draft.file, edit, {
-          signal: editorAbortRef.current.signal,
-        });
-        next = {
-          kind: "new",
-          file: draft.file,
-          preview: draft.preview,
-          media,
-          edit,
-        };
-      }
-      const previous = attachment;
-      setAttachment(next);
-      discardPrepared(previous, {
-        revoke: previous?.preview?.url !== next?.preview?.url,
-      });
-      setDraft(null);
-      setEditorOpen(false);
-    } catch (cause) {
-      if (cause?.name !== "AbortError") {
-        setFailedDraft({
-          mediaId: cause.mediaId,
-          revision: cause.revision,
-        });
-        setEditorError(cause.message || "이미지를 처리할 수 없습니다.");
-      }
-    } finally {
-      editorAbortRef.current = null;
-      setEditorPending(false);
-    }
+    const next =
+      draft.kind === "revision"
+        ? {
+            kind: "revision",
+            mediaId: draft.mediaId,
+            response: null,
+            previewUrl: draft.source.url,
+            edit,
+            operationId: createMediaOperationId(),
+          }
+        : {
+            kind: "new",
+            file: draft.file,
+            preview: draft.preview,
+            media: null,
+            edit,
+            operationId: createMediaOperationId(),
+          };
+    const previous = attachment;
+    setAttachment(next);
+    discardPrepared(previous, {
+      revoke: previous?.preview?.url !== next?.preview?.url,
+    });
+    setDraft(null);
+    setEditorOpen(false);
   }
 
   function removeImage() {
@@ -355,22 +342,47 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
         let mediaIds = remainingMediaIds;
         let revisionActivations = [];
         if (attachment?.kind === "new") {
-          mediaIds = [attachment.media.mediaId, ...remainingMediaIds];
+          let media = attachment.media;
+          if (!media) {
+            editorAbortRef.current = new AbortController();
+            media = await uploadMediaWithoutWaiting(
+              attachment.file,
+              { ...attachment.edit, operationId: attachment.operationId },
+              { signal: editorAbortRef.current.signal },
+            );
+            setAttachment((current) =>
+              current?.kind === "new" ? { ...current, media } : current,
+            );
+          }
+          mediaIds = [media.mediaId, ...remainingMediaIds];
         } else if (attachment?.kind === "revision") {
+          let response = attachment.response;
+          if (!response) {
+            editorAbortRef.current = new AbortController();
+            response = await prepareRevisionWithoutWaiting(
+              attachment.mediaId,
+              { ...attachment.edit, operationId: attachment.operationId },
+              { signal: editorAbortRef.current.signal },
+            );
+            setAttachment((current) =>
+              current?.kind === "revision" ? { ...current, response } : current,
+            );
+          }
           mediaIds = (post.media || []).map((media) => media.mediaId);
           revisionActivations = [
             {
               mediaId: attachment.mediaId,
-              revision: attachment.response.revision,
+              revision: response.revision,
+              operationId: attachment.operationId,
             },
           ];
         } else if (attachment?.kind === "original-v2") {
           mediaIds = (post.media || []).map((media) => media.mediaId);
         }
-        await postApi.updateV2(post.postId, {
+        await postApi.updateAsyncMedia(post.postId, {
           content: content.trim(),
           mediaIds: mediaIds.slice(0, 5),
-          revisionActivations,
+          revisionTargets: revisionActivations,
         });
       }
       if (attachment?.kind === "new" && attachment.preview?.url) {
@@ -382,6 +394,7 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
     } catch (cause) {
       setError(cause.message);
     } finally {
+      editorAbortRef.current = null;
       pendingRef.current = false;
       setPending(false);
     }
@@ -466,7 +479,7 @@ export function EditPostModal({ open, onClose, post, onUpdated }) {
             <input
               ref={inputRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/jpeg,image/png,image/webp,image/bmp,.jpg,.jpeg,.png,.webp,.bmp"
               onChange={choose}
               disabled={pending || sourcePending}
             />

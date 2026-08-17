@@ -17,6 +17,11 @@ export const postApi = {
       method: "POST",
       body: JSON.stringify({ content, mediaIds }),
     }),
+  createAsyncMedia: ({ content, mediaIds = [] }) =>
+    httpClient("/api/v2/posts/me/async-media", {
+      method: "POST",
+      body: JSON.stringify({ content, mediaIds }),
+    }),
   update: (postId, { content, imageUrl }) =>
     httpClient(`/api/posts/${postId}`, {
       method: "PATCH",
@@ -30,6 +35,14 @@ export const postApi = {
     httpClient(`/api/v2/posts/${postId}`, {
       method: "PATCH",
       body: JSON.stringify({ content, mediaIds, revisionActivations }),
+    }),
+  updateAsyncMedia: (
+    postId,
+    { content, mediaIds = [], revisionTargets = [] },
+  ) =>
+    httpClient(`/api/v2/posts/${postId}/async-media`, {
+      method: "PATCH",
+      body: JSON.stringify({ content, mediaIds, revisionTargets }),
     }),
   remove: (postId) => httpClient(`/api/posts/${postId}`, { method: "DELETE" }),
   like: (postId) =>
