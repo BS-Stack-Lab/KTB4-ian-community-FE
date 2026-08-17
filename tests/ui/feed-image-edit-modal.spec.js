@@ -120,7 +120,7 @@ async function openImageEditor(page) {
   return dialog;
 }
 
-test("FeedImageEdit는 최신 Figma 480×486 및 Slider 토큰을 사용한다", async ({
+test("FeedImageEdit는 프레임 선택 및 Slider 토큰을 사용한다", async ({
   page,
 }) => {
   await prepare(page);
@@ -156,9 +156,14 @@ test("FeedImageEdit는 최신 Figma 480×486 및 Slider 토큰을 사용한다",
     };
   });
 
-  expect(metrics.dialog).toEqual({ x: 720, y: 297, width: 480, height: 486 });
+  expect(metrics.dialog).toEqual({
+    x: 720,
+    y: 273.5,
+    width: 480,
+    height: 533,
+  });
   expect(metrics.header.height).toBe(52);
-  expect(metrics.body.height).toBe(378);
+  expect(metrics.body.height).toBe(425);
   expect(metrics.viewport).toMatchObject({ width: 448, height: 288 });
   expect(metrics.slider).toMatchObject({ width: 448, height: 50 });
   expect(metrics.track).toMatchObject({ width: 448, height: 6 });
@@ -176,6 +181,7 @@ test("FeedImageEdit는 최신 Figma 480×486 및 Slider 토큰을 사용한다",
   await expect(
     dialog.locator(".feed-image-edit-slider__ticks img"),
   ).toHaveCount(5);
+  await expect(dialog.getByRole("radio")).toHaveCount(2);
   await expect(dialog.getByText(/회전/)).toHaveCount(0);
 
   await page.screenshot({
@@ -233,7 +239,10 @@ test("FeedImageEdit 확대 결과는 percentage Crop으로 업로드한다", asy
   await dialog.getByLabel("이미지 확대 배율").fill("2");
   await dialog.getByRole("button", { name: "이미지 첨부" }).click();
   await expect(page.getByRole("dialog", { name: "피드 생성" })).toBeVisible();
+  await page.getByLabel("피드 본문").fill("좌표 검증");
+  await page.getByRole("button", { name: "피드 게시", exact: true }).click();
 
+  await expect.poll(() => uploadPayload?.zoom).toBe(2);
   expect(uploadPayload.zoom).toBe(2);
   expect(uploadPayload.crop).toMatchObject({
     x: expect.any(Number),
