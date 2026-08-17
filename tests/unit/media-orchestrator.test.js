@@ -4,7 +4,9 @@ import {
   pollMedia,
   pollRevision,
   prepareRevision,
+  prepareRevisionWithoutWaiting,
   uploadMedia,
+  uploadMediaWithoutWaiting,
 } from "../../src/features/media/model/mediaOrchestrator.js";
 
 describe("Media V2 orchestration", () => {
@@ -136,5 +138,43 @@ describe("Media V2 orchestration", () => {
         get: async () => ({ status: "PROCESSING" }),
       }),
     ).rejects.toMatchObject({ code: "MEDIA_REVISION_PROCESSING_TIMEOUT" });
+  });
+
+  it("피드용 업로드와 Revision은 PROCESSING 응답을 polling 없이 반환한다", async () => {
+    const file = new File(["source"], "source.bmp", { type: "image/bmp" });
+    vi.spyOn(mediaApi, "initiate").mockResolvedValue({
+      mediaId: "media-async",
+      upload: { url: "https://upload.example", fields: {} },
+    });
+    vi.spyOn(mediaApi, "uploadToPresignedPost").mockResolvedValue();
+    vi.spyOn(mediaApi, "complete").mockResolvedValue({
+      mediaId: "media-async",
+      status: "PROCESSING",
+    });
+    const get = vi.spyOn(mediaApi, "get");
+
+    const uploaded = await uploadMediaWithoutWaiting(file, {
+      purpose: "POST",
+      frame: "POST_LANDSCAPE",
+      rotation: 0,
+      crop: { x: 0, y: 0, width: 1, height: 1 },
+    });
+    expect(uploaded.status).toBe("PROCESSING");
+    expect(get).not.toHaveBeenCalled();
+
+    vi.spyOn(mediaApi, "createRevision").mockResolvedValue({
+      mediaId: "media-async",
+      revision: 2,
+      status: "PROCESSING",
+    });
+    const getRevision = vi.spyOn(mediaApi, "getRevision");
+    const revision = await prepareRevisionWithoutWaiting("media-async", {
+      frame: "POST_PORTRAIT",
+      crop: { x: 0, y: 0, width: 1, height: 1 },
+      zoom: 1,
+      position: { x: 0.5, y: 0.5 },
+    });
+    expect(revision.status).toBe("PROCESSING");
+    expect(getRevision).not.toHaveBeenCalled();
   });
 });

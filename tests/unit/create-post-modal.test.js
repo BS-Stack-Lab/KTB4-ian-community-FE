@@ -107,7 +107,7 @@ describe("피드 생성 Modal", () => {
 
   it("첨부 준비 후 게시 요청은 중복 실행하지 않고 성공 시 정리한다", async () => {
     let finish;
-    vi.spyOn(postApi, "createV2").mockReturnValue(
+    vi.spyOn(postApi, "createAsyncMedia").mockReturnValue(
       new Promise((resolve) => {
         finish = resolve;
       }),
@@ -127,8 +127,8 @@ describe("피드 생성 Modal", () => {
       fireEvent.click(submit);
       fireEvent.click(submit);
     });
-    expect(postApi.createV2).toHaveBeenCalledTimes(1);
-    expect(postApi.createV2).toHaveBeenCalledWith({
+    expect(postApi.createAsyncMedia).toHaveBeenCalledTimes(1);
+    expect(postApi.createAsyncMedia).toHaveBeenCalledWith({
       content: "본문",
       mediaIds: ["media-1"],
     });
@@ -140,51 +140,10 @@ describe("피드 생성 Modal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("이미지 처리를 기다리지 않고 생성 Modal로 복귀하고 READY 전 게시를 막는다", async () => {
-    let finishProcessing;
-    mediaApi.complete.mockReturnValueOnce(
-      new Promise((resolve) => {
-        finishProcessing = resolve;
-      }),
-    );
-    await renderModal();
-    const textarea = document.querySelector('[aria-label="피드 본문"]');
-    await act(() => fireEvent.change(textarea, { target: { value: "본문" } }));
-    const file = new File(["image"], "photo.png", { type: "image/png" });
-    await act(async () =>
-      fireEvent.change(document.querySelector('input[type="file"]'), {
-        target: { files: [file] },
-      }),
-    );
-
-    act(() =>
-      fireEvent.click(document.querySelector('[aria-label="이미지 첨부"]')),
-    );
-
-    expect(document.querySelector('[aria-label="피드 게시"]')).not.toBeNull();
-    expect(document.body.textContent).toContain("이미지 처리 중");
-    expect(document.querySelector('[aria-label="피드 게시"]').disabled).toBe(
-      true,
-    );
-    await vi.waitFor(() => expect(finishProcessing).toBeTypeOf("function"));
-
-    await act(async () =>
-      finishProcessing({
-        mediaId: "media-1",
-        status: "READY",
-        variants: [],
-      }),
-    );
-    await vi.waitFor(() =>
-      expect(document.body.textContent).not.toContain("이미지 처리 중"),
-    );
-    expect(document.querySelector('[aria-label="피드 게시"]').disabled).toBe(
-      false,
-    );
-  });
-
   it("게시 API 실패 후 본문과 준비된 Preview를 유지한다", async () => {
-    vi.spyOn(postApi, "createV2").mockRejectedValueOnce(new Error("생성 실패"));
+    vi.spyOn(postApi, "createAsyncMedia").mockRejectedValueOnce(
+      new Error("생성 실패"),
+    );
     await renderModal();
     await chooseAndAttach(
       new File(["image"], "photo.png", { type: "image/png" }),

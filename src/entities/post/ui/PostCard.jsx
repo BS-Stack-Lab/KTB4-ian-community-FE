@@ -123,24 +123,45 @@ export function PostCard({
             )}
           </span>
         </header>
-        {post.imageUrl && (
-          <img
-            className={`post-card__image post-card__image--${imageOrientation}`}
-            src={apiAssetUrl(post.imageUrl, null)}
-            srcSet={responsive?.srcSet}
-            sizes="(max-width: 448px) 100vw, 448px"
-            loading={imagePriority ? "eager" : "lazy"}
-            fetchPriority={imagePriority ? "high" : "auto"}
-            alt="피드 첨부 이미지"
-            draggable={false}
-            onDragStart={(event) => event.preventDefault()}
-            onLoad={(event) => {
-              const { naturalWidth, naturalHeight } = event.currentTarget;
-              setImageOrientation(
-                naturalHeight > naturalWidth ? "portrait" : "landscape",
-              );
-            }}
-          />
+        {(post.imageUrl || post.mediaProcessing || post.mediaFailed) && (
+          <div className="post-card__media">
+            {post.imageUrl ? (
+              <img
+                className={`post-card__image post-card__image--${imageOrientation}`}
+                src={apiAssetUrl(post.imageUrl, null)}
+                srcSet={responsive?.srcSet}
+                sizes="(max-width: 448px) 100vw, 448px"
+                loading={imagePriority ? "eager" : "lazy"}
+                fetchPriority={imagePriority ? "high" : "auto"}
+                alt="피드 첨부 이미지"
+                draggable={false}
+                onDragStart={(event) => event.preventDefault()}
+                onLoad={(event) => {
+                  const { naturalWidth, naturalHeight } = event.currentTarget;
+                  setImageOrientation(
+                    naturalHeight > naturalWidth ? "portrait" : "landscape",
+                  );
+                }}
+              />
+            ) : (
+              <div
+                className="post-card__image-placeholder"
+                aria-hidden="true"
+              />
+            )}
+            {(post.mediaProcessing || post.mediaFailed) && (
+              <span
+                className={`post-card__media-state${
+                  post.mediaFailed ? " is-failed" : ""
+                }`}
+                role="status"
+              >
+                {post.mediaFailed
+                  ? "이미지 처리에 실패했어요"
+                  : "이미지를 처리하고 있어요"}
+              </span>
+            )}
+          </div>
         )}
         <p className="post-card__content">{post.content}</p>
       </div>

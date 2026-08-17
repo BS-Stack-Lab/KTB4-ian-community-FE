@@ -23,11 +23,11 @@ test("실제 Backend에서 피드를 생성하고 새로고침 후 다시 조회
   await page.getByLabel("피드 본문").fill(content);
   const responsePromise = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname === "/api/v2/posts/me" &&
+      new URL(response.url()).pathname === "/api/v2/posts/me/async-media" &&
       response.request().method() === "POST",
   );
   await page.getByRole("button", { name: "피드 게시", exact: true }).click();
-  expect((await responsePromise).status()).toBe(201);
+  expect((await responsePromise).status()).toBe(202);
   await expect(page.getByText(content)).toBeVisible();
 
   await page.reload();

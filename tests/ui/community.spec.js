@@ -160,7 +160,7 @@ async function prepare(
         headers: cors,
       });
     if (
-      url.pathname === "/api/v2/posts/me" &&
+      url.pathname === "/api/v2/posts/me/async-media" &&
       route.request().method() === "POST" &&
       createFails
     )

@@ -115,7 +115,10 @@ async function prepare(page, { createFails = false, createDelay = 0 } = {}) {
       request.method() === "DELETE"
     )
       return route.fulfill({ status: 204, headers: cors });
-    if (url.pathname === "/api/v2/posts/me" && request.method() === "POST") {
+    if (
+      url.pathname === "/api/v2/posts/me/async-media" &&
+      request.method() === "POST"
+    ) {
       createCount += 1;
       if (createDelay)
         await new Promise((resolve) => setTimeout(resolve, createDelay));

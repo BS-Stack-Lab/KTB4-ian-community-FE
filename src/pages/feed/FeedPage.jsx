@@ -101,6 +101,28 @@ export function FeedPage({
   }, [load, refreshKey]);
 
   useEffect(() => {
+    if (!posts.some((post) => post.mediaProcessing)) return undefined;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const result = await postApi.list({
+          page: 0,
+          size: PAGE_SIZE,
+          signal: controller.signal,
+        });
+        const next = (result?.content || []).map(normalizePost);
+        setPosts((current) => appendUnique(current, next));
+      } catch (cause) {
+        if (cause?.name !== "AbortError") setError(cause.message);
+      }
+    }, 2_000);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [posts]);
+
+  useEffect(() => {
     if (
       !hasNext ||
       loadingMore ||
